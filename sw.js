@@ -1,4 +1,4 @@
-const CACHE_NAME = 'doc-scan-v3';
+const CACHE_NAME = 'doc-scan-v4';
 const ASSETS = [
   './',
   './index.html',
@@ -14,6 +14,8 @@ const OPTIONAL_ASSETS = [
 // OCR 组件所在 CDN：首次在线使用后缓存，之后 OCR 可离线
 const RUNTIME_CACHE_HOSTS = [
   'cdn.jsdelivr.net',
+  'fastly.jsdelivr.net',
+  'gcore.jsdelivr.net',
   'tessdata.projectnaptha.com',
   'unpkg.com'
 ];

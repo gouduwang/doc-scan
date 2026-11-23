@@ -438,16 +438,37 @@ let deferredPrompt;
 window.addEventListener('beforeinstallprompt', e => {
   e.preventDefault();
   deferredPrompt = e;
-  const hint = document.getElementById('installHint');
-  hint.classList.remove('hidden');
-  hint.onclick = async ev => {
-    ev.preventDefault();
-    if (!deferredPrompt) return;
+});
+function installClick(ev) {
+  ev.preventDefault();
+  const zh = typeof uiLang === 'undefined' || uiLang !== 'en';
+  if (deferredPrompt) {
     deferredPrompt.prompt();
-    const { outcome } = await deferredPrompt.userChoice;
-    if (outcome === 'accepted') hint.classList.add('hidden');
-    deferredPrompt = null;
-  };
+    deferredPrompt.userChoice.then(({ outcome }) => {
+      if (outcome === 'accepted') document.getElementById('installHint').classList.add('hidden');
+      deferredPrompt = null;
+    });
+    return;
+  }
+  // 浏览器没有提供自动安装入口：按平台给手动指引
+  const ua = navigator.userAgent;
+  if (/micromessenger/i.test(ua)) {
+    alert(zh ? '微信内置浏览器不支持添加到桌面。\n请点右上角"···"→"在浏览器中打开"，再从浏览器添加。'
+             : 'WeChat browser cannot add to home screen. Open in the system browser first.');
+  } else if (/iphone|ipad|ipod/i.test(ua)) {
+    alert(zh ? '请用 Safari 打开本页：\n点击底部"分享"按钮（□↑）→ 向下滑找到"添加到主屏幕"。'
+             : 'In Safari: tap Share (□↑) → "Add to Home Screen".');
+  } else {
+    alert(zh ? '请点浏览器菜单（右上角 ⋮ 或 ≡）→ 选择"添加到主屏幕"或"安装应用"。\n若没有该选项，请改用系统自带浏览器或 Chrome 打开本页。'
+             : 'Open the browser menu (⋮) → "Add to Home screen" / "Install app".');
+  }
+}
+window.addEventListener('load', () => {
+  if (location.protocol.startsWith('http')) {
+    const hint = document.getElementById('installHint');
+    hint.classList.remove('hidden');
+    hint.onclick = installClick;
+  }
 });
 
 /* ---------------- 证件预设（物理尺寸 mm） ---------------- */
@@ -1510,18 +1531,39 @@ $('selLang').onchange = e => { uiLang = e.target.value; localStorage.setItem('ui
 $('selTheme').onchange = e => { uiTheme = e.target.value; localStorage.setItem('ui_theme', uiTheme); applySettings(); };
 $('selFont').onchange = e => { uiFont = e.target.value; localStorage.setItem('ui_font', uiFont); applySettings(); };
 
-/* ---------------- OCR 识别文字（Tesseract.js，本机 WASM 运算） ---------------- */
-async function loadTesseract() {
-  if (window.Tesseract) return;
-  await new Promise((res, rej) => {
+/* ---------------- OCR 识别文字（Tesseract.js，本机 WASM 运算） ----------------
+ * cdn.jsdelivr.net 在部分地区不可达，依次尝试多条 CDN 线路；
+ * worker/core 与主脚本同源加载，避免主脚本成功而组件被墙。
+ */
+const TESS_BASES = [
+  'https://cdn.jsdelivr.net/npm',
+  'https://fastly.jsdelivr.net/npm',
+  'https://gcore.jsdelivr.net/npm',
+  'https://unpkg.com'
+];
+let tessBase = null;
+function loadScriptFrom(url, timeoutMs) {
+  return new Promise((res, rej) => {
     const sc = document.createElement('script');
-    sc.src = 'https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js';
-    sc.onload = res;
-    sc.onerror = () => rej(new Error(uiLang === 'en'
-      ? 'Failed to load OCR engine (network required on first use)'
-      : 'OCR 组件加载失败（首次使用需联网）'));
+    const timer = setTimeout(() => { sc.remove(); rej(new Error('timeout')); }, timeoutMs);
+    sc.src = url;
+    sc.onload = () => { clearTimeout(timer); res(); };
+    sc.onerror = () => { clearTimeout(timer); sc.remove(); rej(new Error('load error')); };
     document.head.appendChild(sc);
   });
+}
+async function loadTesseract() {
+  if (window.Tesseract) return;
+  for (const base of TESS_BASES) {
+    try {
+      await loadScriptFrom(`${base}/tesseract.js@5.1.1/dist/tesseract.min.js`, 20000);
+      tessBase = base;
+      return;
+    } catch {}
+  }
+  throw new Error(uiLang === 'en'
+    ? 'All OCR CDN routes failed. Please check your network and retry.'
+    : 'OCR 组件各线路均加载失败，请检查网络后重试（首次使用需联网）。');
 }
 $('btnOcr').onclick = async () => {
   const ready = sides.filter(s => s.warped);
@@ -1531,7 +1573,10 @@ $('btnOcr').onclick = async () => {
     : '正在加载识别组件…（首次需下载约 15MB，之后可离线）');
   try {
     await loadTesseract();
-    const worker = await Tesseract.createWorker('chi_sim+eng');
+    const worker = await Tesseract.createWorker('chi_sim+eng', 1, {
+      workerPath: `${tessBase}/tesseract.js@5.1.1/dist/worker.min.js`,
+      corePath: `${tessBase}/tesseract.js-core@5`
+    });
     const out = [];
     for (let i = 0; i < ready.length; i++) {
       busy(true, uiLang === 'en' ? `Recognizing ${i+1}/${ready.length}…` : `正在识别 ${i+1}/${ready.length}…`);
