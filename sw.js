@@ -1,4 +1,4 @@
-const CACHE_NAME = 'doc-scan-v4';
+const CACHE_NAME = 'doc-scan-v5';
 const ASSETS = [
   './',
   './index.html',
@@ -42,7 +42,9 @@ self.addEventListener('activate', e => {
 
 self.addEventListener('fetch', e => {
   const url = new URL(e.request.url);
-  if (RUNTIME_CACHE_HOSTS.includes(url.hostname) && e.request.method === 'GET') {
+  // 自托管 OCR 大文件：首次在线取用后缓存，此后 OCR 可离线
+  const isOwnOcr = url.origin === location.origin && url.pathname.includes('/ocr/');
+  if ((isOwnOcr || RUNTIME_CACHE_HOSTS.includes(url.hostname)) && e.request.method === 'GET') {
     e.respondWith(
       caches.match(e.request).then(r => r || fetch(e.request).then(resp => {
         if (resp.ok) {

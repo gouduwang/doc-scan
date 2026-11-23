@@ -339,7 +339,7 @@
       <button class="btn btn-ghost" id="btnSave" disabled>💾 存入文件夹</button>
       <button class="btn btn-ghost" id="btnOcr" disabled>🔠 识别文字</button>
     </div>
-    <p class="muted" id="ocrTip" style="margin-top:8px;text-align:center">识别文字（OCR）在本机浏览器内完成，支持中英文；首次使用需联网下载约 15MB 组件，之后可离线。</p>
+    <p class="muted" id="ocrTip" style="margin-top:8px;text-align:center">识别文字（OCR）在本机浏览器内完成，支持中英文；首次使用需联网下载约 35MB 组件（来自本站，无第三方依赖），之后可离线。</p>
     <div class="notice">⚖️ 请仅处理<strong>本人证件</strong>并用于合法用途。伪造、变造或冒用他人证件属违法行为。</div>
   </div>
 
@@ -1453,7 +1453,7 @@ const I18N_NODES = [
   { q:'#btnPrint', en:'🖨 Print' },
   { q:'#btnSave', en:'💾 Save to My Files' },
   { q:'#btnOcr', en:'🔠 OCR text' },
-  { q:'#ocrTip', en:'OCR runs locally in your browser (Chinese & English). First use downloads a ~15 MB engine; works offline afterwards.' },
+  { q:'#ocrTip', en:'OCR runs locally in your browser (Chinese & English). First use downloads a ~35 MB engine from this site; works offline afterwards.' },
   { q:'.notice', html:true, en:'⚖️ Process <strong>your own documents</strong> for lawful purposes only. Forging or misusing identity documents is illegal.' },
   { q:'#folderDesc', html:true, en:'Saved scans live here for quick reuse. Stored only in <strong>this browser</strong> (IndexedDB), never uploaded; clearing site data deletes them — back up important files.' },
   { q:'#footText', en:'Runs entirely in your browser · No server · No tracking · Save this file for offline use' },
@@ -1532,8 +1532,8 @@ $('selTheme').onchange = e => { uiTheme = e.target.value; localStorage.setItem('
 $('selFont').onchange = e => { uiFont = e.target.value; localStorage.setItem('ui_font', uiFont); applySettings(); };
 
 /* ---------------- OCR 识别文字（Tesseract.js，本机 WASM 运算） ----------------
- * cdn.jsdelivr.net 在部分地区不可达，依次尝试多条 CDN 线路；
- * worker/core 与主脚本同源加载，避免主脚本成功而组件被墙。
+ * 优先使用与本站同目录自托管的 ocr/ 文件（不依赖任何第三方 CDN）；
+ * 本地缺失时再依次尝试多条 CDN 线路。
  */
 const TESS_BASES = [
   'https://cdn.jsdelivr.net/npm',
@@ -1541,7 +1541,9 @@ const TESS_BASES = [
   'https://gcore.jsdelivr.net/npm',
   'https://unpkg.com'
 ];
-let tessBase = null;
+let tessBase = null;      // CDN 基址；null 且 tessLocal=true 表示用本地文件
+let tessLocal = false;
+const OCR_DIR = new URL('./ocr', location.href).href;   // 自托管目录（无尾斜杠）
 function loadScriptFrom(url, timeoutMs) {
   return new Promise((res, rej) => {
     const sc = document.createElement('script');
@@ -1554,6 +1556,15 @@ function loadScriptFrom(url, timeoutMs) {
 }
 async function loadTesseract() {
   if (window.Tesseract) return;
+  // 1) 自托管优先（部署时 ocr/ 目录随站点一起上传）
+  if (location.protocol.startsWith('http')) {
+    try {
+      await loadScriptFrom(`${OCR_DIR}/tesseract.min.js`, 15000);
+      tessLocal = true;
+      return;
+    } catch {}
+  }
+  // 2) CDN 兜底
   for (const base of TESS_BASES) {
     try {
       await loadScriptFrom(`${base}/tesseract.js@5.1.1/dist/tesseract.min.js`, 20000);
@@ -1562,21 +1573,21 @@ async function loadTesseract() {
     } catch {}
   }
   throw new Error(uiLang === 'en'
-    ? 'All OCR CDN routes failed. Please check your network and retry.'
+    ? 'All OCR routes failed. Please check your network and retry.'
     : 'OCR 组件各线路均加载失败，请检查网络后重试（首次使用需联网）。');
 }
 $('btnOcr').onclick = async () => {
   const ready = sides.filter(s => s.warped);
   if (!ready.length) return;
   busy(true, uiLang === 'en'
-    ? 'Loading OCR engine… (first use downloads ~15 MB)'
-    : '正在加载识别组件…（首次需下载约 15MB，之后可离线）');
+    ? 'Loading OCR engine… (first use downloads ~35 MB)'
+    : '正在加载识别组件…（首次需下载约 35MB，之后可离线）');
   try {
     await loadTesseract();
-    const worker = await Tesseract.createWorker('chi_sim+eng', 1, {
-      workerPath: `${tessBase}/tesseract.js@5.1.1/dist/worker.min.js`,
-      corePath: `${tessBase}/tesseract.js-core@5`
-    });
+    const tessOpts = tessLocal
+      ? { workerPath: `${OCR_DIR}/worker.min.js`, corePath: OCR_DIR, langPath: OCR_DIR, gzip: true }
+      : { workerPath: `${tessBase}/tesseract.js@5.1.1/dist/worker.min.js`, corePath: `${tessBase}/tesseract.js-core@5` };
+    const worker = await Tesseract.createWorker('chi_sim+eng', 1, tessOpts);
     const out = [];
     for (let i = 0; i < ready.length; i++) {
       busy(true, uiLang === 'en' ? `Recognizing ${i+1}/${ready.length}…` : `正在识别 ${i+1}/${ready.length}…`);
