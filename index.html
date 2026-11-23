@@ -1215,7 +1215,8 @@ const API = {
   enhance:           '/v1/enhance',             // 预留：AI 增强
   feedback:          '/v1/feedback',            // 预留：投诉与建议（POST JSON {type,message,contact,time}）
 };
-const FEEDBACK_CONTACT = '';  // TODO: 填你的接收邮箱/微信号，服务器未就绪时引导用户发到这里
+const FEEDBACK_CONTACT = '';   // TODO: 填你的接收邮箱/微信号，"联系作者"与降级提示用
+const FEEDBACK_ENDPOINT = '';  // TODO: 填 Formspree 等表单服务地址(如 https://formspree.io/f/xxxx)，填上即启用真在线提交
 
 /* ---------------- 分享 ---------------- */
 function copyTextRobust(s) {
@@ -1313,8 +1314,11 @@ $('fbSubmit').onclick = async () => {
   try {
     const ctrl = new AbortController();
     const timer = setTimeout(() => ctrl.abort(), 8000);
-    const res = await fetch(API_BASE + API.feedback, {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
+    // 优先 Formspree 等表单服务；未配置则尝试自建 /v1/feedback 接口
+    const target = FEEDBACK_ENDPOINT || (API_BASE + API.feedback);
+    const res = await fetch(target, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
       body: JSON.stringify(payload), signal: ctrl.signal
     });
     clearTimeout(timer);
