@@ -16,17 +16,18 @@
     background: #f1f5f9; color: #0f172a; line-height: 1.6;
   }
   .wrap { max-width: 860px; margin: 0 auto; padding: 24px 16px 60px; }
-  header { text-align: center; margin-bottom: 20px; }
+  header { text-align: center; margin-bottom: 20px; position: relative; }
   header h1 { font-size: 26px; letter-spacing: 1px; }
+  .gear-btn {
+    position: absolute; top: -2px; right: 0; width: 40px; height: 40px; padding: 0;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 17px; line-height: 1; border-radius: 10px;
+  }
   .badge {
     display: inline-block; margin-top: 8px; padding: 4px 14px; border-radius: 999px;
     background: #dcfce7; color: #166534; font-size: 13px; font-weight: 600;
   }
   .badge.online { background: #dbeafe; color: #1e40af; }
-  .mode-row {
-    display: flex; align-items: center; justify-content: center; gap: 8px;
-    margin-top: 10px; font-size: 13px; color: #334155;
-  }
   .switch { position: relative; display: inline-block; width: 40px; height: 22px; }
   .switch input { display: none; }
   .switch .track {
@@ -220,6 +221,24 @@
     border: 1.5px solid #e2e8f0; border-radius: 9px; padding: 8px 10px;
     font-size: 14px; background: #fff; min-width: 150px; color: inherit;
   }
+  .set-sect {
+    font-size: 12px; font-weight: 700; letter-spacing: .4px;
+    color: #64748b; margin: 18px 0 2px;
+  }
+  .set-sect:first-of-type { margin-top: 0; }
+  .set-action {
+    display: flex; align-items: center; gap: 8px; width: 100%;
+    padding: 13px 2px; border: none; border-bottom: 1px solid #e2e8f0;
+    background: transparent; font-size: 14px; font-weight: 600;
+    color: inherit; cursor: pointer; text-align: left;
+  }
+  .set-action:last-child { border-bottom: none; }
+  .set-action:hover { color: #2563eb; }
+  .set-action .chev { margin-left: auto; color: #94a3b8; font-weight: 400; }
+  body[data-theme="dark"] .set-action { border-color: #334155; }
+  body[data-theme="dark"] .set-sect { color: #94a3b8; }
+  body[data-theme="green"] .set-action { border-color: #c3d8bd; }
+  body[data-theme="green"] .set-sect { color: #5b6b58; }
   /* ---- 主题：护眼绿 ---- */
   body[data-theme="green"] { background: #dcead9; color: #1f2d1f; }
   body[data-theme="green"] .card, body[data-theme="green"] .fb-dialog { background: #eef5ea; border-color: #c3d8bd; }
@@ -251,7 +270,6 @@
   body[data-theme="dark"] .file-item { border-color: #334155; }
   body[data-theme="dark"] .set-row { border-color: #334155; }
   body[data-theme="dark"] .add-slot, body[data-theme="dark"] .more-tile { background: transparent; }
-  body[data-theme="dark"] .mode-row { color: #cbd5e1; }
   /* ---- 字号 ---- */
   body.fs-l { zoom: 1.12; }
   body.fs-xl { zoom: 1.28; }
@@ -260,27 +278,15 @@
 <body>
 <div class="wrap">
   <header>
+    <button class="btn btn-ghost btn-sm gear-btn" id="btnSettings" title="设置" aria-label="设置">⚙</button>
     <h1><img id="logoImg" alt="" style="width:34px;height:34px;border-radius:8px;vertical-align:-7px;margin-right:6px"> 证件扫描</h1>
     <div class="badge" id="modeBadge">🔒 100% 本地处理 · 图片不离开你的电脑 · 可断网使用</div>
-    <div class="mode-row">
-      <label class="switch">
-        <input type="checkbox" id="onlineToggle">
-        <span class="track"></span>
-      </label>
-      <span id="modeLabel">🌐 在线增强：关闭</span>
-      <span class="muted" id="modeStatus"></span>
-    </div>
-    <div class="mode-row">
-      <button class="btn btn-ghost btn-sm" id="btnShare">📤 分享</button>
-      <button class="btn btn-ghost btn-sm" id="btnFeedback">💬 投诉与建议</button>
-      <button class="btn btn-ghost btn-sm" id="btnSettings">⚙ 设置</button>
-    </div>
   </header>
 
   <div class="card">
     <div class="type-head">
       <h2><span class="step-no">1</span>选择证件类型</h2>
-      <button class="btn btn-ghost btn-sm" id="btnManageTypes">⚙ 自定义</button>
+      <button class="btn btn-ghost btn-sm" id="btnManageTypes" title="管理常用证件类型">✎ 自定义</button>
     </div>
     <p class="muted hidden" id="manageTip" style="margin-bottom:10px">点 ★ 收藏常用证件到主界面，点 ☆ 移出。设置保存在本机，下次打开保持不变。</p>
     <div class="type-grid" id="typeGrid"></div>
@@ -392,9 +398,10 @@
 <div id="setMask" class="hidden">
   <div class="fb-dialog">
     <div class="fb-head">
-      <h3 id="setTitle">⚙ 显示设置</h3>
+      <h3 id="setTitle">⚙ 设置</h3>
       <button class="btn btn-ghost btn-sm" id="setClose">✕</button>
     </div>
+    <div class="set-sect" id="setSectDisplay">显示</div>
     <div class="set-row"><span id="setLangLab">语言 / Language</span>
       <select id="selLang" class="set-sel">
         <option value="zh">🇨🇳 中文</option>
@@ -415,7 +422,25 @@
         <option value="xl">特大</option>
       </select>
     </div>
-    <p class="muted" id="setTip" style="margin-top:10px">设置保存在本机，下次打开保持不变。</p>
+
+    <div class="set-sect" id="setSectOnline">在线增强</div>
+    <div class="set-row">
+      <span id="modeLabel">🌐 在线增强：关闭</span>
+      <label class="switch">
+        <input type="checkbox" id="onlineToggle">
+        <span class="track"></span>
+      </label>
+    </div>
+    <p class="muted" id="modeStatus" style="font-size:12px;margin-top:6px;font-weight:400"></p>
+    <p class="muted" id="setOnlineTip" style="font-size:12px;margin-top:6px">关闭时全部在本机完成；开启后仅 AI 高级功能（去水印/去手写）上传图片，基础扫描不受影响。</p>
+
+    <div class="set-sect" id="setSectOther">支持与反馈</div>
+    <button class="set-action" id="setShare">📤 <span id="setShareLab">分享给朋友</span><span class="chev">›</span></button>
+    <button class="set-action" id="setFeedback">💬 <span id="setFeedbackLab">投诉与建议</span><span class="chev">›</span></button>
+    <button class="set-action" id="setCheckUpdate">🔄 <span id="setCheckUpdateLab">检查更新</span><span class="chev">›</span></button>
+
+    <p class="muted" id="setTip" style="margin-top:12px">设置保存在本机，下次打开保持不变。</p>
+    <p class="muted" id="setVersion" style="font-size:11px;margin-top:6px;opacity:.7">版本 2026-11-23</p>
   </div>
 </div>
 
@@ -1376,7 +1401,7 @@ function copyTextRobust(s) {
     } catch { return false; }
   }
 }
-$('btnShare').onclick = async () => {
+async function doShare() {
   const isHttp = location.protocol.startsWith('http');
   const zh = uiLang !== 'en';
   const text = zh
@@ -1401,7 +1426,8 @@ $('btnShare').onclick = async () => {
   } else {
     prompt(zh ? '自动复制失败，请手动复制以下内容：' : 'Auto-copy failed. Copy manually:', s);
   }
-};
+}
+$('setShare').onclick = () => { $('setMask').classList.add('hidden'); doShare(); };
 
 /* ---------------- 投诉 / 反馈（双页签 + 问题多选） ---------------- */
 let fbMode = 'complaint';   // complaint | suggest
@@ -1421,7 +1447,28 @@ $('fbTabS').onclick = () => fbSwitch('suggest');
 document.querySelectorAll('#fbIssueChips label').forEach(l => {
   l.addEventListener('click', () => l.classList.toggle('on'));   // 可多选
 });
-$('btnFeedback').onclick = () => $('fbMask').classList.remove('hidden');
+$('setFeedback').onclick = () => {
+  $('setMask').classList.add('hidden');
+  $('fbMask').classList.remove('hidden');
+};
+// 检查更新：清掉 Service Worker 缓存后重载，解决“部署了新版但界面还是旧的”
+$('setCheckUpdate').onclick = async () => {
+  const zh = uiLang !== 'en';
+  busy(true, zh ? '正在检查更新…' : 'Checking for updates…');
+  try {
+    if ('serviceWorker' in navigator) {
+      const regs = await navigator.serviceWorker.getRegistrations();
+      await Promise.all(regs.map(r => r.update().catch(() => {})));
+      if (window.caches) {
+        const keys = await caches.keys();
+        await Promise.all(keys.map(k => caches.delete(k)));
+      }
+    }
+  } catch (e) { /* 清缓存失败也继续重载，最差退化为普通刷新 */ }
+  const u = new URL(location.href);
+  u.searchParams.set('_r', Date.now().toString(36));
+  location.replace(u.toString());
+};
 $('fbClose').onclick = () => $('fbMask').classList.add('hidden');
 $('fbMask').addEventListener('click', e => { if (e.target === $('fbMask')) $('fbMask').classList.add('hidden'); });
 $('fbContactUs').onclick = async () => {
@@ -1565,7 +1612,7 @@ const EN_MAP = {
   '资料页':'Data page','证书页':'Certificate page','执照页':'License page','证明页':'Certificate page','内页':'Inner page',
   '重新编辑':'Re-edit','换图':'Replace','＋ 选择照片':'+ Choose photo','✕ 删除此页':'✕ Remove page',
   '支持手机斜拍照片':'Angled phone photos OK','添加一页':'Add a page','更多证件':'More types',
-  '⚙ 自定义':'⚙ Customize','✓ 完成':'✓ Done','至少保留一个常用证件类型。':'Keep at least one pinned type.',
+  '⚙ 自定义':'⚙ Customize','✎ 自定义':'✎ Customize','✓ 完成':'✓ Done','至少保留一个常用证件类型。':'Keep at least one pinned type.',
   '🌐 在线增强：开启':'🌐 Online mode: ON','🌐 在线增强：关闭':'🌐 Online mode: OFF',
   '🔒 100% 本地处理 · 图片不离开你的电脑 · 可断网使用':'🔒 100% on-device · Images never leave your device · Works offline',
   '🌐 在线模式 · 使用 AI 功能时图片将加密上传至自有服务器':'🌐 Online mode · AI features upload images via HTTPS',
@@ -1586,9 +1633,15 @@ function T(s) {
 }
 const I18N_NODES = [
   { q:'header h1', en:' Doc Scan' },
-  { q:'#btnShare', en:'📤 Share' },
-  { q:'#btnFeedback', en:'💬 Feedback' },
-  { q:'#btnSettings', en:'⚙ Settings' },
+  { q:'#btnSettings', attr:'aria-label', en:'Settings' },
+  { q:'#setSectDisplay', en:'Display' },
+  { q:'#setSectOnline', en:'Online enhancement' },
+  { q:'#setSectOther', en:'Support & feedback' },
+  { q:'#setShareLab', en:'Share with friends' },
+  { q:'#setFeedbackLab', en:'Complaint / Feedback' },
+  { q:'#setCheckUpdateLab', en:'Check for updates' },
+  { q:'#setVersion', en:'Version 2026-11-23' },
+  { q:'#setOnlineTip', en:'When off, everything runs on this device. When on, only AI extras (watermark / handwriting removal) upload images over HTTPS; basic scanning is unaffected.' },
   { q:'.card h2', en:['Choose document type','Upload & crop','Scan effect & watermarks','A4 preview & export (1:1, 300 DPI)','My Files'] },
   { q:'#manageTip', en:'Tap ★ to pin a type to the home grid, ☆ to unpin. Saved on this device.' },
   { q:'.editor-tip', en:'Drag the 4 dots to the document corners, then tap "Apply crop". Fixes angled shots via perspective correction.' },
@@ -1612,7 +1665,7 @@ const I18N_NODES = [
   { q:'#folderDesc', html:true, en:'Saved scans live here for quick reuse. Stored only in <strong>this browser</strong> (IndexedDB), never uploaded; clearing site data deletes them — back up important files.' },
   { q:'#footText', en:'Runs entirely in your browser · No server · No tracking · Save this file for offline use' },
   { q:'#installHint', en:'Add to home screen' },
-  { q:'#setTitle', en:'⚙ Display settings' },
+  { q:'#setTitle', en:'⚙ Settings' },
   { q:'#setLangLab', en:'Language' },
   { q:'#setThemeLab', en:'Theme' },
   { q:'#setFontLab', en:'Font size' },
