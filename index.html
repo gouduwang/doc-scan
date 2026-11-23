@@ -496,6 +496,7 @@ const PRESETS = [
 ];
 const MM2PX = 300 / 25.4;           // 300 DPI
 const A4W = 2480, A4H = 3508;       // A4 @300dpi
+const MAX_OUT_PIXELS = 5e6;         // 单张矫正结果像素上限，超出自动降采样
 
 let preset = PRESETS[0];
 let sides = [];        // [{src:canvas|null, quad:[{x,y}×4]|null, warped:canvas|null}]
@@ -603,7 +604,7 @@ function renderSlots() {
     d.appendChild(lab);
     if (s.warped) {
       const img = document.createElement('img');
-      img.className = 'thumb'; img.src = s.warped.toDataURL('image/jpeg', .8);
+      img.className = 'thumb'; img.src = thumbOf(s);
       d.appendChild(img);
       const row = document.createElement('div'); row.style.marginTop = '8px';
       const b1 = document.createElement('button');
@@ -644,7 +645,8 @@ function renderSlots() {
 }
 function pickFile(i) {
   const inp = document.createElement('input');
-  inp.type = 'file'; inp.accept = 'image/*'; inp.capture = 'environment';
+  // 不设 capture：让系统弹出"拍照 / 相册"选择（设了 capture 会强制进相机，无法选已有照片）
+  inp.type = 'file'; inp.accept = 'image/*';
   inp.onchange = () => {
     const f = inp.files[0]; if (!f) return;
     const url = URL.createObjectURL(f);
@@ -658,6 +660,12 @@ function pickFile(i) {
       c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
       sides[i] = { label: sides[i].label, src:c, quad:null, warped:null };
       openEditor(i);
+    };
+    img.onerror = () => {
+      URL.revokeObjectURL(url);
+      alert(uiLang === 'en'
+        ? 'This image cannot be read. Please choose another file (HEIC/HEIF: convert to JPG first).'
+        : '该图片无法读取，请换一张（HEIC/HEIF 格式请先转成 JPG）。');
     };
     img.src = url;
   };
@@ -756,16 +764,26 @@ $('btnRotate').onclick = () => {
 $('btnCancelEdit').onclick = () => { editingIdx = -1; $('editor').classList.add('hidden'); };
 $('btnApply').onclick = () => {
   const i = editingIdx, s = sides[i];
+  if (!s || !s.src) return;
   busy(true);
   setTimeout(() => {
-    // 目标像素尺寸：物理尺寸 @300dpi，总像素超 500 万时自动降分辨率
-    let ow = Math.round(preset.w * MM2PX), oh = Math.round(preset.h * MM2PX);
-    const cap = 5e6;
-    if (ow * oh > cap) { const k = Math.sqrt(cap / (ow * oh)); ow = Math.round(ow*k); oh = Math.round(oh*k); }
-    s.warped = warpPerspective(s.src, s.quad, ow, oh);
-    busy(false);
-    editingIdx = -1; $('editor').classList.add('hidden');
-    renderSlots(); renderA4();
+    try {
+      // 目标像素尺寸：物理尺寸 @300dpi，总像素超上限时自动降分辨率
+      let ow = Math.round(preset.w * MM2PX), oh = Math.round(preset.h * MM2PX);
+      const cap = MAX_OUT_PIXELS;
+      if (ow * oh > cap) { const k = Math.sqrt(cap / (ow * oh)); ow = Math.round(ow*k); oh = Math.round(oh*k); }
+      s.warped = warpPerspective(s.src, s.quad, ow, oh);
+      invalidate(s);            // 矫正结果变了，缩略图/滤镜缓存一并作废
+      editingIdx = -1; $('editor').classList.add('hidden');
+      renderSlots(); renderA4();
+    } catch (e) {
+      // 四角过近或共线：矩阵退化。回退默认四角，避免留下一张整幅白图
+      s.quad = defaultQuad(s.src.width, s.src.height);
+      drawEditor();
+      alert(uiLang === 'en'
+        ? 'The four corners are too close or in a straight line, so perspective correction failed. Corners were reset — please drag them again.'
+        : '四个角点离得太近或落在同一直线上，无法完成矫正。已重置四角，请重新拖动。');
+    } finally { busy(false); }
   }, 30);
 };
 
@@ -785,6 +803,8 @@ function solveH(dstW, dstH, q) {
     for (let r = c+1; r < 8; r++) if (Math.abs(A[r][c]) > Math.abs(A[piv][c])) piv = r;
     [A[c], A[piv]] = [A[piv], A[c]]; [b[c], b[piv]] = [b[piv], b[c]];
     const d = A[c][c];
+    // 主元接近 0：四角共线/重合，矩阵奇异。继续除会得到 NaN/Infinity（整幅白图）
+    if (Math.abs(d) < 1e-12) return null;
     for (let k = c; k < 8; k++) A[c][k] /= d;
     b[c] /= d;
     for (let r = 0; r < 8; r++) {
@@ -797,8 +817,20 @@ function solveH(dstW, dstH, q) {
   }
   return b; // [a,b,c,d,e,f,g,h]
 }
+/* 四边形面积：用于判断四角是否退化（共线/重合时面积为 0） */
+function quadArea(q) {
+  let a = 0;
+  for (let i = 0; i < 4; i++) {
+    const p = q[i], n = q[(i+1) % 4];
+    a += p.x * n.y - n.x * p.y;
+  }
+  return Math.abs(a) / 2;
+}
 function warpPerspective(srcCanvas, quad, ow, oh) {
+  // 面积过小说明角点挤在一起或共线，直接拒绝，否则会输出整幅纯色图
+  if (quadArea(quad) < 400) throw new Error('degenerate-quad');
   const H = solveH(ow, oh, quad);
+  if (!H) throw new Error('degenerate-quad');
   const sctx = srcCanvas.getContext('2d');
   const sd = sctx.getImageData(0, 0, srcCanvas.width, srcCanvas.height);
   const sw = sd.width, sh = sd.height, sp = sd.data;
@@ -883,63 +915,103 @@ function applyFilter(cv, mode) {
   return out;
 }
 
-/* ---------------- A4 排版（自动分页） ---------------- */
-let a4Pages = [];   // 每个元素是一张 A4 canvas
+/* ---------------- A4 排版（自动分页） ----------------
+ * 内存策略：常驻内存只保留 620px 宽的低分辨率预览页；
+ * 全分辨率 A4（2480×3508，单页约 34MB）仅在导出时逐页生成、用完即弃，
+ * 否则 20 页会把常驻内存推到 700MB 以上（移动端直接 OOM）。
+ */
+const PREVIEW_W = 620;
+let a4Groups = [];      // 每页包含的 side 列表（预览与导出共用同一分页结果）
+
+function a4Layout(ready) {
+  const gap = Math.round(14 * MM2PX), margin = Math.round(10 * MM2PX);
+  const cardW = Math.round(preset.w * MM2PX), cardH = Math.round(preset.h * MM2PX);
+  // 单张卡缩放到不超过页面可用区（A4 尺寸文档≈整页一张）
+  const scale = Math.min(1, (A4W - margin*2) / cardW, (A4H - margin*2) / cardH);
+  const dw = cardW * scale, dh = cardH * scale;
+  const perPage = Math.max(1, Math.floor((A4H - margin*2 + gap) / (dh + gap)));
+  const groups = [];
+  for (let p = 0; p < ready.length; p += perPage) groups.push(ready.slice(p, p + perPage));
+  return { gap, margin, dw, dh, groups };
+}
+
+/* 缩略图 / 预览滤镜缓存随矫正结果一起失效 */
+function invalidate(s) { s._thumb = null; s._pv = null; }
+
+/* 槽位缩略图：360px 宽足够显示，避免每次重渲染都对 500 万像素图做 JPEG 编码 */
+function thumbOf(s) {
+  if (s._thumb) return s._thumb;
+  const tw = 360, th = Math.max(1, Math.round(tw * s.warped.height / s.warped.width));
+  const c = document.createElement('canvas');
+  c.width = tw; c.height = th;
+  c.getContext('2d').drawImage(s.warped, 0, 0, tw, th);
+  s._thumb = c.toDataURL('image/jpeg', .8);
+  return s._thumb;
+}
+
+/* 预览用滤波：先缩到显示尺寸再逐像素处理。
+ * 整张 500 万像素图滤一次约 100ms，多页时打字会卡到秒级；缩图后单页 <10ms。 */
+function previewFiltered(s, tw) {
+  tw = Math.max(1, Math.round(tw));
+  if (s._pv && s._pv.mode === filter && s._pv.w === tw) return s._pv.cv;
+  const th = Math.max(1, Math.round(tw * s.warped.height / s.warped.width));
+  const small = document.createElement('canvas');
+  small.width = tw; small.height = th;
+  small.getContext('2d').drawImage(s.warped, 0, 0, tw, th);
+  s._pv = { mode: filter, w: tw, cv: applyFilter(small, filter) };
+  return s._pv.cv;
+}
 
 function renderA4() {
-  a4Pages = [];
   const ready = sides.filter(s => s.warped);
+  a4Groups = [];
+  const wrap = $('a4PreviewWrap'); wrap.innerHTML = '';
+  const wm = $('wmText').value.trim();
   if (ready.length) {
-    const gap = Math.round(14 * MM2PX), margin = Math.round(10 * MM2PX);
-    const imgs = ready.map(s => applyFilter(s.warped, filter));
-    const cardW = Math.round(preset.w * MM2PX), cardH = Math.round(preset.h * MM2PX);
-    // 单张卡缩放到不超过页面可用区（A4 尺寸文档≈整页一张）
-    const scale = Math.min(1, (A4W - margin*2) / cardW, (A4H - margin*2) / cardH);
-    const dw = cardW * scale, dh = cardH * scale;
-    const perPage = Math.max(1, Math.floor((A4H - margin*2 + gap) / (dh + gap)));
-    const wm = $('wmText').value.trim();
-    for (let p = 0; p < imgs.length; p += perPage) {
-      const group = imgs.slice(p, p + perPage);
-      const cv = document.createElement('canvas');
-      cv.width = A4W; cv.height = A4H;
-      const ctx = cv.getContext('2d');
-      ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, A4W, A4H);
-      let y = (A4H - (dh * group.length + gap * (group.length - 1))) / 2;
-      group.forEach(im => {
-        const xpos = (A4W - dw) / 2;
+    const L = a4Layout(ready);
+    a4Groups = L.groups;
+    const ps = PREVIEW_W / A4W;
+    L.groups.forEach((group, gi) => {
+      const pv = document.createElement('canvas');
+      pv.className = 'a4page';
+      pv.width = PREVIEW_W; pv.height = Math.round(PREVIEW_W * A4H / A4W);
+      const ctx = pv.getContext('2d');
+      ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, pv.width, pv.height);
+      ctx.save();
+      ctx.scale(ps, ps);          // 之后全部按 A4 实际坐标绘制，排版逻辑与导出一致
+      let y = (A4H - (L.dh * group.length + L.gap * (group.length - 1))) / 2;
+      group.forEach(s => {
+        const xpos = (A4W - L.dw) / 2;
         ctx.save();
         ctx.shadowColor = 'rgba(15,23,42,.18)'; ctx.shadowBlur = 18; ctx.shadowOffsetY = 6;
-        ctx.fillStyle = '#fff'; ctx.fillRect(xpos, y, dw, dh);
+        ctx.fillStyle = '#fff'; ctx.fillRect(xpos, y, L.dw, L.dh);
         ctx.restore();
-        ctx.drawImage(im, xpos, y, dw, dh);
+        ctx.drawImage(previewFiltered(s, L.dw * ps), xpos, y, L.dw, L.dh);
         ctx.strokeStyle = 'rgba(100,116,139,.35)'; ctx.lineWidth = 2;
-        ctx.strokeRect(xpos, y, dw, dh);
-        drawStatement(ctx, xpos, y, dw, dh);
-        y += dh + gap;
+        ctx.strokeRect(xpos, y, L.dw, L.dh);
+        drawStatement(ctx, xpos, y, L.dw, L.dh);
+        y += L.dh + L.gap;
       });
       if (wm) drawWatermark(ctx, wm);
-      a4Pages.push(cv);
-    }
-  }
-  // 缩略预览（每页一张）
-  const wrap = $('a4PreviewWrap'); wrap.innerHTML = '';
-  const pageList = a4Pages.length ? a4Pages : [null];
-  pageList.forEach((pg, i) => {
+      ctx.restore();
+      wrap.appendChild(pv);
+      if (L.groups.length > 1) {
+        const cap = document.createElement('div');
+        cap.className = 'muted'; cap.style.textAlign = 'center';
+        cap.textContent = uiLang === 'en' ? `Page ${gi + 1} / ${L.groups.length}` : `第 ${gi + 1} / ${L.groups.length} 页`;
+        wrap.appendChild(cap);
+      }
+    });
+  } else {
+    // 空状态：占位白页
     const pv = document.createElement('canvas');
     pv.className = 'a4page';
-    pv.width = 620; pv.height = Math.round(620 * A4H / A4W);
+    pv.width = PREVIEW_W; pv.height = Math.round(PREVIEW_W * A4H / A4W);
     const pctx = pv.getContext('2d');
     pctx.fillStyle = '#fff'; pctx.fillRect(0, 0, pv.width, pv.height);
-    if (pg) pctx.drawImage(pg, 0, 0, pv.width, pv.height);
     wrap.appendChild(pv);
-    if (a4Pages.length > 1) {
-      const cap = document.createElement('div');
-      cap.className = 'muted'; cap.style.textAlign = 'center';
-      cap.textContent = uiLang === 'en' ? `Page ${i + 1} / ${a4Pages.length}` : `第 ${i + 1} / ${a4Pages.length} 页`;
-      wrap.appendChild(cap);
-    }
-  });
-  const ok = a4Pages.length > 0;
+  }
+  const ok = ready.length > 0;
   $('btnPng').disabled = $('btnPdf').disabled = $('btnPrint').disabled = $('btnSave').disabled = $('btnOcr').disabled = !ok;
 }
 
@@ -992,28 +1064,82 @@ function download(href, name) {
   const aEl = document.createElement('a');
   aEl.href = href; aEl.download = name; aEl.click();
 }
-$('btnPng').onclick = () => {
-  a4Pages.forEach((pg, i) => {
-    const suffix = a4Pages.length > 1 ? `_第${i+1}页` : '';
-    setTimeout(() => download(pg.toDataURL('image/png'), `${preset.name}_扫描件${suffix}.png`), i * 350);
+/* 导出用：按页生成全分辨率 A4。调用方用完即弃，避免多页全尺寸 canvas 常驻内存 */
+function buildFullPage(group) {
+  const L = a4Layout(group);
+  const cv = document.createElement('canvas');
+  cv.width = A4W; cv.height = A4H;
+  const ctx = cv.getContext('2d');
+  ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, A4W, A4H);
+  let y = (A4H - (L.dh * group.length + L.gap * (group.length - 1))) / 2;
+  group.forEach(s => {
+    const xpos = (A4W - L.dw) / 2;
+    ctx.save();
+    ctx.shadowColor = 'rgba(15,23,42,.18)'; ctx.shadowBlur = 18; ctx.shadowOffsetY = 6;
+    ctx.fillStyle = '#fff'; ctx.fillRect(xpos, y, L.dw, L.dh);
+    ctx.restore();
+    ctx.drawImage(applyFilter(s.warped, filter), xpos, y, L.dw, L.dh);
+    ctx.strokeStyle = 'rgba(100,116,139,.35)'; ctx.lineWidth = 2;
+    ctx.strokeRect(xpos, y, L.dw, L.dh);
+    drawStatement(ctx, xpos, y, L.dw, L.dh);
+    y += L.dh + L.gap;
   });
+  const wm = $('wmText').value.trim();
+  if (wm) drawWatermark(ctx, wm);
+  return cv;
+}
+const yieldFrame = () => new Promise(r => setTimeout(r, 20));   // 让"处理中"先绘制出来
+
+$('btnPng').onclick = async () => {
+  if (!a4Groups.length) return;
+  busy(true); await yieldFrame();
+  const n = a4Groups.length;
+  try {
+    for (let i = 0; i < n; i++) {
+      if (n > 1) busy(true, uiLang === 'en' ? `Exporting ${i+1}/${n}…` : `正在导出 ${i+1}/${n}…`);
+      const pg = buildFullPage(a4Groups[i]);
+      const suffix = n > 1 ? `_第${i+1}页` : '';
+      download(pg.toDataURL('image/png'), `${preset.name}_扫描件${suffix}.png`);
+      if (i < n - 1) await yieldFrame();
+    }
+  } catch (e) {
+    alert((uiLang === 'en' ? 'Export failed: ' : '导出失败：') + e.message);
+  } finally { busy(false); }
 };
-$('btnPrint').onclick = () => {
+$('btnPrint').onclick = async () => {
+  if (!a4Groups.length) return;
   const w = window.open('', '_blank');
-  const imgs = a4Pages.map(pg =>
-    `<img src="${pg.toDataURL('image/jpeg', .92)}">`).join('');
-  w.document.write(`<html><head><title>打印</title><style>@page{size:A4;margin:0}body{margin:0}img{width:100%;display:block;page-break-after:always}img:last-child{page-break-after:auto}</style></head><body onload="window.print()">${imgs}</body></html>`);
-  w.document.close();
+  if (!w) {
+    alert(uiLang === 'en' ? 'The print window was blocked. Please allow pop-ups and try again.'
+                          : '打印窗口被拦截，请允许本站弹出窗口后重试。');
+    return;
+  }
+  busy(true); await yieldFrame();
+  try {
+    const imgs = a4Groups.map(g =>
+      `<img src="${buildFullPage(g).toDataURL('image/jpeg', .92)}">`).join('');
+    w.document.write(`<html><head><title>打印</title><style>@page{size:A4;margin:0}body{margin:0}img{width:100%;display:block;page-break-after:always}img:last-child{page-break-after:auto}</style></head><body onload="window.print()">${imgs}</body></html>`);
+    w.document.close();
+  } catch (e) {
+    alert((uiLang === 'en' ? 'Print failed: ' : '打印失败：') + e.message);
+    try { w.close(); } catch {}
+  } finally { busy(false); }
 };
-$('btnPdf').onclick = () => {
-  const jpegs = a4Pages.map(pg => dataUrlToBytes(pg.toDataURL('image/jpeg', 0.92)));
-  const pdf = makePdf(jpegs, A4W, A4H);
-  const url = URL.createObjectURL(new Blob([pdf], { type:'application/pdf' }));
-  download(url, `${preset.name}_扫描件.pdf`);
-  setTimeout(() => URL.revokeObjectURL(url), 5000);
+$('btnPdf').onclick = async () => {
+  if (!a4Groups.length) return;
+  busy(true); await yieldFrame();
+  try {
+    const jpegs = a4Groups.map(g => dataUrlToBytes(buildFullPage(g).toDataURL('image/jpeg', 0.92)));
+    const pdf = makePdf(jpegs, A4W, A4H);
+    const url = URL.createObjectURL(new Blob([pdf], { type:'application/pdf' }));
+    download(url, `${preset.name}_扫描件.pdf`);
+    setTimeout(() => URL.revokeObjectURL(url), 5000);
+  } catch (e) {
+    alert((uiLang === 'en' ? 'PDF export failed: ' : 'PDF 导出失败：') + e.message);
+  } finally { busy(false); }
 };
 
-/* ---------------- 单页 PDF 生成（内嵌 JPEG） ---------------- */
+/* ---------------- 多页 PDF 生成（每页内嵌 JPEG） ---------------- */
 // PDF-GEN-START
 function dataUrlToBytes(u) {
   const b = atob(u.split(',')[1]);
@@ -1114,18 +1240,26 @@ const dbAdd = rec => dbReq('readwrite', st => st.add(rec));
 const dbDel = id => dbReq('readwrite', st => st.delete(id));
 
 $('btnSave').onclick = async () => {
-  if (!a4Pages.length) return;
+  if (!a4Groups.length) return;
   const defName = `${preset.name}_${new Date().toLocaleDateString('zh-CN')}`;
   const name = prompt('给这份文件起个名字（方便以后查找）：', defName);
   if (name === null) return;
-  busy(true);
+  busy(true); await yieldFrame();
   try {
-    const pages = await Promise.all(a4Pages.map(pg =>
-      new Promise(r => pg.toBlob(r, 'image/jpeg', .92))));
-    const t = document.createElement('canvas');
-    t.width = 200; t.height = Math.round(200 * A4H / A4W);
-    t.getContext('2d').drawImage(a4Pages[0], 0, 0, t.width, t.height);
-    const thumb = await new Promise(r => t.toBlob(r, 'image/jpeg', .7));
+    const pages = [];
+    let thumb = null;
+    for (let i = 0; i < a4Groups.length; i++) {
+      if (a4Groups.length > 1) busy(true, uiLang === 'en' ? `Saving ${i+1}/${a4Groups.length}…` : `正在保存 ${i+1}/${a4Groups.length}…`);
+      const pg = buildFullPage(a4Groups[i]);
+      if (i === 0) {
+        const t = document.createElement('canvas');
+        t.width = 200; t.height = Math.round(200 * A4H / A4W);
+        t.getContext('2d').drawImage(pg, 0, 0, t.width, t.height);
+        thumb = await new Promise(r => t.toBlob(r, 'image/jpeg', .7));
+      }
+      pages.push(await new Promise(r => pg.toBlob(r, 'image/jpeg', .92)));
+      if (i < a4Groups.length - 1) await yieldFrame();
+    }
     await dbAdd({ name: name.trim() || defName, presetName: preset.name,
                   date: Date.now(), pageCount: pages.length, pages, thumb });
     await renderFileList();
@@ -1180,24 +1314,32 @@ async function exportSavedPdf(id) {
   busy(true);
   try {
     const rec = await dbGet(id);
+    if (!rec || !rec.pages || !rec.pages.length) throw new Error(uiLang === 'en' ? 'File not found (it may have been deleted).' : '文件不存在或已被删除。');
     const jpegs = await Promise.all(rec.pages.map(b =>
       b.arrayBuffer().then(x => new Uint8Array(x))));
     const pdf = makePdf(jpegs, A4W, A4H);
     const url = URL.createObjectURL(new Blob([pdf], { type:'application/pdf' }));
     download(url, `${rec.name}.pdf`);
     setTimeout(() => URL.revokeObjectURL(url), 5000);
+  } catch (e) {
+    alert((uiLang === 'en' ? 'Export failed: ' : '导出失败：') + e.message);
   } finally { busy(false); }
 }
 async function exportSavedPng(id) {
-  const rec = await dbGet(id);
-  rec.pages.forEach((b, i) => {
-    const suffix = rec.pages.length > 1 ? `_第${i+1}页` : '';
-    const url = URL.createObjectURL(b);
-    setTimeout(() => {
-      download(url, `${rec.name}${suffix}.jpg`);
-      setTimeout(() => URL.revokeObjectURL(url), 5000);
-    }, i * 350);
-  });
+  try {
+    const rec = await dbGet(id);
+    if (!rec || !rec.pages || !rec.pages.length) throw new Error(uiLang === 'en' ? 'File not found (it may have been deleted).' : '文件不存在或已被删除。');
+    rec.pages.forEach((b, i) => {
+      const suffix = rec.pages.length > 1 ? `_第${i+1}页` : '';
+      const url = URL.createObjectURL(b);
+      setTimeout(() => {
+        download(url, `${rec.name}${suffix}.jpg`);
+        setTimeout(() => URL.revokeObjectURL(url), 5000);
+      }, i * 350);
+    });
+  } catch (e) {
+    alert((uiLang === 'en' ? 'Export failed: ' : '导出失败：') + e.message);
+  }
 }
 renderFileList();
 
@@ -1294,6 +1436,22 @@ $('fbContactUs').onclick = async () => {
     alert((zh ? '联系方式已复制：' : 'Contact copied: ') + FEEDBACK_CONTACT);
   else prompt(zh ? '作者联系方式：' : 'Contact:', FEEDBACK_CONTACT);
 };
+/* 在线通道未配置时的兜底：把反馈内容整理成文本，复制/弹窗让用户线下发出去 */
+async function fbFallback(payload) {
+  const zh2 = uiLang !== 'en';
+  const head = payload.type === 'complaint' ? (zh2 ? '投诉' : 'Complaint') : (zh2 ? '建议' : 'Suggestion');
+  const s = `【证件扫描·${head}】\n` +
+    (payload.issues.length ? (zh2 ? '问题项：' : 'Issues: ') + payload.issues.join('、') + '\n' : '') +
+    (payload.message ? payload.message + '\n' : '') +
+    (zh2 ? '联系方式：' : 'Contact: ') + (payload.contact || (zh2 ? '未留' : 'n/a')) +
+    `\n${payload.time}`;
+  const tip = FEEDBACK_CONTACT
+    ? (zh2 ? `请发送至：${FEEDBACK_CONTACT}` : `Send to: ${FEEDBACK_CONTACT}`)
+    : (zh2 ? '可通过邮件或微信发给作者。' : 'Send it to the author by email.');
+  if (await copyTextRobust(s)) alert((zh2 ? '在线提交暂未开通。反馈内容已复制到剪贴板，' : 'Online submit not ready. Feedback copied — ') + tip);
+  else prompt((zh2 ? '在线提交暂未开通，' : 'Online submit not ready. ') + tip, s);
+}
+
 $('fbSubmit').onclick = async () => {
   const zh = uiLang !== 'en';
   const issues = [...document.querySelectorAll('#fbIssueChips label.on')].map(l => l.dataset.t);
@@ -1310,11 +1468,14 @@ $('fbSubmit').onclick = async () => {
     contact: $('fbContact').value.trim(),
     time: new Date().toISOString(), version: 'phase0'
   };
+  // 没配 Formspree 之类的表单端点、API_BASE 也还是占位域名时，不要向 example.com 发请求等 8 秒超时
+  const hasRemote = !!FEEDBACK_ENDPOINT || !/example\.com/i.test(API_BASE);
   $('fbSubmit').disabled = true;
   try {
+    if (!hasRemote) { await fbFallback(payload); return; }
     const ctrl = new AbortController();
     const timer = setTimeout(() => ctrl.abort(), 8000);
-    // 优先 Formspree 等表单服务；未配置则尝试自建 /v1/feedback 接口
+    // 优先 Formspree 等表单服务；未配置则走自建 /v1/feedback 接口
     const target = FEEDBACK_ENDPOINT || (API_BASE + API.feedback);
     const res = await fetch(target, {
       method: 'POST',
@@ -1329,18 +1490,7 @@ $('fbSubmit').onclick = async () => {
     $('fbMask').classList.add('hidden');
   } catch {
     // 服务器未就绪：复制内容引导线下发送，反馈不丢失
-    const zh2 = uiLang !== 'en';
-    const head = fbMode === 'complaint' ? (zh2 ? '投诉' : 'Complaint') : (zh2 ? '建议' : 'Suggestion');
-    const s = `【证件扫描·${head}】\n` +
-      (payload.issues.length ? (zh2 ? '问题项：' : 'Issues: ') + payload.issues.join('、') + '\n' : '') +
-      (text ? text + '\n' : '') +
-      (zh2 ? '联系方式：' : 'Contact: ') + (payload.contact || (zh2 ? '未留' : 'n/a')) +
-      `\n${payload.time}`;
-    const tip = FEEDBACK_CONTACT
-      ? (zh2 ? `请发送至：${FEEDBACK_CONTACT}` : `Send to: ${FEEDBACK_CONTACT}`)
-      : (zh2 ? '可通过邮件或微信发给作者。' : 'Send it to the author by email.');
-    if (await copyTextRobust(s)) alert((zh2 ? '在线提交暂未开通。反馈内容已复制到剪贴板，' : 'Online submit not ready. Feedback copied — ') + tip);
-    else prompt((zh2 ? '在线提交暂未开通，' : 'Online submit not ready. ') + tip, s);
+    await fbFallback(payload);
   } finally { $('fbSubmit').disabled = false; }
 };
 let onlineMode = localStorage.getItem('online_mode') === '1';
@@ -1586,24 +1736,28 @@ $('btnOcr').onclick = async () => {
   busy(true, uiLang === 'en'
     ? 'Loading OCR engine… (first use downloads ~35 MB)'
     : '正在加载识别组件…（首次需下载约 35MB，之后可离线）');
+  let worker = null;
   try {
     await loadTesseract();
     const tessOpts = tessLocal
       ? { workerPath: `${OCR_DIR}/worker.min.js`, corePath: OCR_DIR, langPath: OCR_DIR, gzip: true }
       : { workerPath: `${tessBase}/tesseract.js@5.1.1/dist/worker.min.js`, corePath: `${tessBase}/tesseract.js-core@5` };
-    const worker = await Tesseract.createWorker('chi_sim+eng', 1, tessOpts);
+    worker = await Tesseract.createWorker('chi_sim+eng', 1, tessOpts);
     const out = [];
     for (let i = 0; i < ready.length; i++) {
       busy(true, uiLang === 'en' ? `Recognizing ${i+1}/${ready.length}…` : `正在识别 ${i+1}/${ready.length}…`);
       const { data } = await worker.recognize(ready[i].warped);
       out.push(`【${T(ready[i].label)}】\n${(data.text || '').trim()}`);
     }
-    await worker.terminate();
     $('ocrText').value = out.join('\n\n');
     $('ocrMask').classList.remove('hidden');
   } catch (e) {
     alert((uiLang === 'en' ? 'OCR failed: ' : '识别失败：') + e.message);
-  } finally { busy(false); }
+  } finally {
+    // 识别失败/session 中断时必须回收 worker，否则重试几次会残留多个线程，内存一路上涨
+    if (worker) { try { await worker.terminate(); } catch {} }
+    busy(false);
+  }
 };
 $('ocrClose').onclick = () => $('ocrMask').classList.add('hidden');
 $('ocrMask').addEventListener('click', e => { if (e.target === $('ocrMask')) $('ocrMask').classList.add('hidden'); });

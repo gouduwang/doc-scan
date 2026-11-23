@@ -20,7 +20,7 @@
 - ⭐ **自定义主界面**：默认只展示 8 种常用证件，点"⚙ 自定义"可用 ★ 收藏/移出证件类型，每人定制自己的常用场景（设置存本机 localStorage）
 - 🌍 **多语言**：中文/English 切换（🇨🇳/🇺🇸），词典式架构可随时扩新语言
 - 🎨 **主题与字号**：默认浅色 / 护眼绿 / 深色三套主题，标准/大/特大三档字号，设置存本机
-- 🔠 **识别文字（OCR）**：Tesseract.js WASM **在本机浏览器内**识别中英文文字，不上传图片；首次使用联网下载约 15MB 组件，Service Worker 缓存后可离线
+- 🔠 **识别文字（OCR）**：Tesseract.js WASM **在本机浏览器内**识别中英文文字，不上传图片；首次使用联网下载约 35MB 组件（优先取本站自托管的 `ocr/` 目录，不含任何第三方 CDN 依赖），Service Worker 缓存后可离线
 - 📤 **分享**：手机上调系统分享面板（Web Share API），桌面端自动复制分享文案
 - 💬 **投诉与建议**：内置反馈弹窗（类型快选+正文+选填联系方式，不强制手机号）；服务器就绪前自动降级为复制反馈内容线下发送，预留 `/v1/feedback` 接口
 
@@ -48,17 +48,14 @@
 ### 方式一：Cloudflare Pages（推荐，全球可用）
 
 1. 在 [Cloudflare Dashboard](https://dash.cloudflare.com) 创建 Pages 项目
-2. 上传这 3 个文件：
-   - `index.html`（将 `证件扫描工具.html` 重命名）
-   - `manifest.json`
-   - `sw.js`
+2. 上传本目录的内容（至少 `index.html`、`manifest.json`、`sw.js` 三个文件；建议连 `ocr/` 一起上传，见下方清单）
 3. 部署后自动获得 `xxx.pages.dev` 域名，支持 HTTPS
 
 **优点**：免费、全球 CDN、自动 HTTPS、国内大部分地区可访问
 
 ### 方式二：GitHub Pages（免费，国内访问不稳定）
 
-1. 创建 GitHub 仓库，上传 3 个文件（`index.html` 重命名后、`manifest.json`、`sw.js`）
+1. 创建 GitHub 仓库，上传本目录内容（至少 `index.html`、`manifest.json`、`sw.js`；`ocr/` 建议一并上传）
 2. 在仓库 Settings → Pages 启用，选择分支
 3. 访问 `https://用户名.github.io/仓库名`
 
@@ -70,12 +67,21 @@
 **腾讯云 COS** / **阿里云 OSS** / **七牛云**：
 
 1. 创建对象存储桶，开启"静态网站托管"
-2. 上传 3 个文件
+2. 上传本目录内容（至少 `index.html`、`manifest.json`、`sw.js`；`ocr/` 建议一并上传）
 3. **绑定自有域名需要 ICP 备案**（个人非经营性备案约 1-2 周）
 4. 配置 CDN 加速
 
 **优点**：国内访问快、稳定
 **缺点**：需要域名备案、有一定成本（但流量费用很低）
+
+### 部署文件清单
+
+| 文件 | 必需 | 说明 |
+|---|---|---|
+| `index.html` | ✅ | 全部界面与逻辑（单文件） |
+| `manifest.json`、`sw.js` | ✅ | PWA 安装与离线缓存 |
+| `icon-192.png`、`icon-512.png`、`apple-touch-icon.png` | 建议 | 安装到主屏幕的图标 |
+| `ocr/`（约 35MB） | 建议 | Tesseract.js 自托管组件。**不传也能用**，但 OCR 首次会改走公共 CDN（多一条外部依赖） |
 
 ### 重要提示：文件重命名
 
@@ -97,7 +103,7 @@
 
 - 纯 HTML + JavaScript（ES6+）
 - Canvas 2D API：图像处理、透视变换、滤镜
-- 手写 PDF 生成器（单页 JPEG 嵌入，符合 PDF 1.4 标准）
+- 手写 PDF 生成器（多页，每页内嵌 JPEG，符合 PDF 1.4 标准，无外部依赖）
 - Service Worker：离线缓存
 - PWA Manifest：应用化体验
 
