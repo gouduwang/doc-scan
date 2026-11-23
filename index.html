@@ -1,0 +1,1571 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>证件扫描 — 零上传</title>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Cdefs%3E%3ClinearGradient id='b' x1='0' y1='0' x2='0' y2='1'%3E%3Cstop offset='0' stop-color='%23182a4e'/%3E%3Cstop offset='1' stop-color='%230c1424'/%3E%3C/linearGradient%3E%3ClinearGradient id='m' x1='0' y1='0' x2='0' y2='1'%3E%3Cstop offset='0' stop-color='%2366f0cf'/%3E%3Cstop offset='1' stop-color='%233ecfae'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='512' height='512' rx='112' fill='url(%23b)'/%3E%3Cpath d='M84 166V124q0-40 40-40h42M428 166V124q0-40-40-40h-42M84 266v42q0 40 40 40h42M428 266v42q0 40-40 40h-42' fill='none' stroke='%2366f0cf' stroke-width='22' stroke-linecap='round'/%3E%3Crect x='126' y='128' width='260' height='170' rx='18' fill='%23f6f9ff'/%3E%3Crect x='150' y='156' width='66' height='80' rx='8' fill='%2366e3c4'/%3E%3Ccircle cx='183' cy='186' r='14' fill='%23128a6e'/%3E%3Cpath d='M160 230q23-22 46 0v6h-46z' fill='%23128a6e'/%3E%3Crect x='234' y='162' width='126' height='15' rx='7' fill='%23a7b6d2'/%3E%3Crect x='234' y='192' width='96' height='13' rx='6' fill='%23c3cfe4'/%3E%3Crect x='234' y='219' width='110' height='13' rx='6' fill='%23c3cfe4'/%3E%3Crect x='150' y='256' width='210' height='14' rx='7' fill='%23d7dfee'/%3E%3Crect x='100' y='206' width='312' height='9' rx='4' fill='%2366f0cf'/%3E%3Crect x='64' y='348' width='384' height='100' rx='50' fill='url(%23m)'/%3E%3Ctext x='256' y='417' font-family='PingFang SC,Microsoft YaHei,sans-serif' font-size='60' font-weight='700' fill='%230c1424' text-anchor='middle'%3E证件扫描%3C/text%3E%3C/svg%3E">
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#2563eb">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<style>
+  :root { color-scheme: light; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: system-ui, -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+    background: #f1f5f9; color: #0f172a; line-height: 1.6;
+  }
+  .wrap { max-width: 860px; margin: 0 auto; padding: 24px 16px 60px; }
+  header { text-align: center; margin-bottom: 20px; }
+  header h1 { font-size: 26px; letter-spacing: 1px; }
+  .badge {
+    display: inline-block; margin-top: 8px; padding: 4px 14px; border-radius: 999px;
+    background: #dcfce7; color: #166534; font-size: 13px; font-weight: 600;
+  }
+  .badge.online { background: #dbeafe; color: #1e40af; }
+  .mode-row {
+    display: flex; align-items: center; justify-content: center; gap: 8px;
+    margin-top: 10px; font-size: 13px; color: #334155;
+  }
+  .switch { position: relative; display: inline-block; width: 40px; height: 22px; }
+  .switch input { display: none; }
+  .switch .track {
+    position: absolute; inset: 0; background: #cbd5e1; border-radius: 999px;
+    transition: background .2s; cursor: pointer;
+  }
+  .switch .track::after {
+    content: ''; position: absolute; top: 2px; left: 2px; width: 18px; height: 18px;
+    background: #fff; border-radius: 50%; transition: transform .2s;
+    box-shadow: 0 1px 3px rgba(0,0,0,.25);
+  }
+  .switch input:checked + .track { background: #2563eb; }
+  .switch input:checked + .track::after { transform: translateX(18px); }
+  .card {
+    background: #fff; border: 1px solid #e2e8f0; border-radius: 14px;
+    padding: 18px 20px; margin-bottom: 16px; box-shadow: 0 1px 3px rgba(15,23,42,.05);
+  }
+  .card h2 { font-size: 16px; margin-bottom: 12px; display: flex; align-items: center; gap: 8px; }
+  .step-no {
+    width: 22px; height: 22px; border-radius: 50%; background: #0f172a; color: #fff;
+    font-size: 13px; display: inline-flex; align-items: center; justify-content: center; flex: none;
+  }
+  .type-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 10px; }
+  @media (max-width: 640px) {
+    .type-grid { grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); gap: 8px; }
+    .slots { grid-template-columns: 1fr; }
+    .wm-input { min-width: 0; width: 100%; }
+    .export-row { flex-direction: column; align-items: stretch; }
+  }
+  .type-btn {
+    border: 1.5px solid #e2e8f0; border-radius: 10px; background: #fff; padding: 10px 8px;
+    cursor: pointer; text-align: center; font-size: 14px; transition: all .15s;
+    position: relative;
+  }
+  .pin-star {
+    position: absolute; top: 2px; right: 6px; font-size: 16px; cursor: pointer;
+    color: #cbd5e1; user-select: none;
+  }
+  .pin-star.pinned { color: #f59e0b; }
+  .more-tile { border-style: dashed; color: #2563eb; background: #f8fafc; }
+  .type-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+  .type-head h2 { margin-bottom: 0; }
+  .type-btn .ico { font-size: 22px; display: block; }
+  .type-btn .sz { font-size: 11px; color: #64748b; display: block; }
+  .type-btn.active { border-color: #2563eb; background: #eff6ff; box-shadow: 0 0 0 2px #bfdbfe; }
+  .slots { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 12px; }
+  .slot {
+    border: 1.5px dashed #cbd5e1; border-radius: 12px; padding: 14px; text-align: center;
+    background: #f8fafc;
+  }
+  .slot.done { border-style: solid; border-color: #86efac; background: #f0fdf4; }
+  .slot .label { font-weight: 600; font-size: 14px; margin-bottom: 8px; }
+  .slot img.thumb { max-width: 100%; max-height: 130px; border-radius: 8px; border: 1px solid #e2e8f0; }
+  .btn {
+    display: inline-block; border: none; border-radius: 9px; padding: 9px 18px; font-size: 14px;
+    cursor: pointer; font-weight: 600; transition: filter .15s;
+  }
+  .btn:hover { filter: brightness(.94); }
+  .btn-primary { background: #2563eb; color: #fff; }
+  .btn-dark { background: #0f172a; color: #fff; }
+  .btn-ghost { background: #e2e8f0; color: #0f172a; }
+  .btn-sm { padding: 6px 12px; font-size: 13px; }
+  .btn:disabled { opacity: .45; cursor: not-allowed; }
+  #editor { margin-top: 14px; }
+  #editorCanvas {
+    width: 100%; border-radius: 10px; border: 1px solid #e2e8f0; touch-action: none;
+    background: #1e293b; display: block; cursor: crosshair;
+  }
+  @media (pointer: coarse) {
+    #editorCanvas { cursor: default; }
+  }
+  .editor-tip { font-size: 13px; color: #64748b; margin: 8px 0; }
+  .row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+  .filters label, .chips label {
+    border: 1.5px solid #e2e8f0; border-radius: 999px; padding: 6px 14px; font-size: 14px;
+    cursor: pointer; user-select: none; background: #fff;
+  }
+  .filters input, .chips input { display: none; }
+  .filters label.on, .chips label.on { border-color: #2563eb; background: #eff6ff; color: #1d4ed8; font-weight: 600; }
+  .wm-input {
+    flex: 1; min-width: 220px; border: 1.5px solid #e2e8f0; border-radius: 9px;
+    padding: 9px 12px; font-size: 14px; outline: none;
+  }
+  .wm-input:focus { border-color: #2563eb; }
+  #a4PreviewWrap { display: flex; flex-direction: column; gap: 6px; }
+  .a4page {
+    width: 100%; max-width: 480px; display: block; margin: 0 auto;
+    border: 1px solid #e2e8f0; border-radius: 6px; box-shadow: 0 4px 16px rgba(15,23,42,.12);
+    background: #fff;
+  }
+  .add-slot {
+    cursor: pointer; display: flex; flex-direction: column; align-items: center;
+    justify-content: center; color: #2563eb; font-weight: 600; font-size: 14px;
+    background: #eff6ff; border-color: #93c5fd; min-height: 120px;
+  }
+  .add-slot:hover { background: #dbeafe; }
+  .file-item {
+    display: flex; align-items: center; gap: 12px; padding: 10px 0;
+    border-bottom: 1px solid #f1f5f9;
+  }
+  .file-item:last-child { border-bottom: none; }
+  .file-item img {
+    width: 46px; height: 65px; object-fit: cover;
+    border: 1px solid #e2e8f0; border-radius: 4px; flex: none;
+  }
+  .file-item .fi-info { flex: 1; min-width: 0; }
+  .file-item .fi-name {
+    font-weight: 600; font-size: 14px;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .file-item .fi-meta { font-size: 12px; color: #64748b; }
+  .file-item .fi-btns { display: flex; gap: 6px; flex: none; flex-wrap: wrap; justify-content: flex-end; }
+  .export-row { margin-top: 14px; justify-content: center; }
+  .muted { color: #64748b; font-size: 13px; }
+  .notice {
+    background: #fffbeb; border: 1px solid #fde68a; color: #92400e; border-radius: 10px;
+    padding: 10px 14px; font-size: 13px; margin-top: 14px;
+  }
+  footer { text-align: center; margin-top: 24px; color: #94a3b8; font-size: 12px; }
+  .hidden { display: none !important; }
+  #busy {
+    position: fixed; inset: 0; background: rgba(255,255,255,.7); display: flex;
+    align-items: center; justify-content: center; font-weight: 700; font-size: 16px; z-index: 50;
+  }
+  #fbMask, #setMask, #ocrMask {
+    position: fixed; inset: 0; background: rgba(15,23,42,.45); z-index: 60;
+    display: flex; align-items: center; justify-content: center; padding: 16px;
+  }
+  .fb-dialog {
+    background: #fff; border-radius: 14px; max-width: 440px; width: 100%;
+    padding: 18px 20px; max-height: 90vh; overflow: auto;
+  }
+  .fb-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+  .fb-head h3 { font-size: 17px; }
+  #fbText, #ocrText {
+    width: 100%; border: 1.5px solid #e2e8f0; border-radius: 9px; padding: 9px 12px;
+    font-size: 14px; outline: none; min-height: 110px; resize: vertical;
+    font-family: inherit; margin-top: 12px;
+  }
+  #fbText:focus, #ocrText:focus { border-color: #2563eb; }
+  #ocrText { min-height: 220px; }
+  .fb-tabs { display: flex; gap: 10px; margin-bottom: 14px; }
+  .fb-tab {
+    flex: 1; border: 1.5px solid #e2e8f0; border-radius: 12px; background: #fff;
+    padding: 10px 8px; cursor: pointer; text-align: center; font-size: 13px;
+    color: #64748b; line-height: 1.4;
+  }
+  .fb-tab strong { display: block; font-size: 15px; color: #0f172a; }
+  .fb-tab.on { border-color: #2563eb; background: #eff6ff; box-shadow: 0 0 0 2px #bfdbfe; }
+  .fb-tab.on strong { color: #1d4ed8; }
+  .fb-hintbox {
+    border: 1px solid #e2e8f0; border-radius: 10px; padding: 10px 12px;
+    font-size: 13px; color: #475569; background: #f8fafc; margin-bottom: 10px;
+  }
+  body[data-theme="dark"] .fb-tab { background: #1e293b; border-color: #334155; }
+  body[data-theme="dark"] .fb-tab strong { color: #e2e8f0; }
+  body[data-theme="dark"] .fb-tab.on { background: #1e3a5f; border-color: #3b82f6; box-shadow: none; }
+  body[data-theme="dark"] .fb-hintbox { background: #0f172a; border-color: #334155; color: #94a3b8; }
+  body[data-theme="green"] .fb-tab { background: #eef5ea; border-color: #c3d8bd; }
+  body[data-theme="green"] .fb-hintbox { background: #f6faf3; border-color: #c3d8bd; }
+  /* 投诉问题项：点击着色的实色胶囊（仿参考图），选中态一眼可辨 */
+  #fbIssueChips { gap: 10px; }
+  #fbIssueChips label {
+    border: 1.5px solid #fdba74; color: #c2410c; background: #fff7ed;
+    border-radius: 999px; padding: 9px 16px; font-size: 14px;
+    transition: all .15s; position: relative;
+  }
+  #fbIssueChips label:active { transform: scale(.96); }
+  #fbIssueChips label.on {
+    background: #f97316; border-color: #f97316; color: #fff; font-weight: 600;
+    box-shadow: 0 2px 8px rgba(249,115,22,.35);
+  }
+  #fbIssueChips label.on::before { content: '✓ '; }
+  body[data-theme="dark"] #fbIssueChips label {
+    background: #431407; border-color: #9a3412; color: #fdba74;
+  }
+  body[data-theme="dark"] #fbIssueChips label.on {
+    background: #ea580c; border-color: #ea580c; color: #fff; box-shadow: none;
+  }
+  body[data-theme="green"] #fbIssueChips label {
+    background: #fdf5ec; border-color: #e8c9a8; color: #b45309;
+  }
+  body[data-theme="green"] #fbIssueChips label.on {
+    background: #ea8a3c; border-color: #ea8a3c; color: #fff;
+  }
+  .set-row {
+    display: flex; justify-content: space-between; align-items: center; gap: 12px;
+    padding: 12px 0; border-bottom: 1px solid #e2e8f0; font-size: 14px; font-weight: 600;
+  }
+  .set-sel {
+    border: 1.5px solid #e2e8f0; border-radius: 9px; padding: 8px 10px;
+    font-size: 14px; background: #fff; min-width: 150px; color: inherit;
+  }
+  /* ---- 主题：护眼绿 ---- */
+  body[data-theme="green"] { background: #dcead9; color: #1f2d1f; }
+  body[data-theme="green"] .card, body[data-theme="green"] .fb-dialog { background: #eef5ea; border-color: #c3d8bd; }
+  body[data-theme="green"] .slot { background: #e4efe0; border-color: #b9d2b1; }
+  body[data-theme="green"] .type-btn, body[data-theme="green"] .filters label,
+  body[data-theme="green"] .chips label { background: #eef5ea; border-color: #c3d8bd; color: inherit; }
+  body[data-theme="green"] .wm-input, body[data-theme="green"] #fbText,
+  body[data-theme="green"] #ocrText, body[data-theme="green"] .set-sel { background: #f6faf3; border-color: #c3d8bd; }
+  body[data-theme="green"] .btn-ghost { background: #d7e6d2; color: #1f2d1f; }
+  body[data-theme="green"] .add-slot, body[data-theme="green"] .more-tile { background: transparent; }
+  /* ---- 主题：深色 ---- */
+  body[data-theme="dark"] { background: #0f172a; color: #e2e8f0; color-scheme: dark; }
+  body[data-theme="dark"] .card, body[data-theme="dark"] .fb-dialog { background: #1e293b; border-color: #334155; box-shadow: none; }
+  body[data-theme="dark"] .slot { background: #162032; border-color: #334155; }
+  body[data-theme="dark"] .slot.done { background: rgba(22,101,52,.25); border-color: #166534; }
+  body[data-theme="dark"] .type-btn, body[data-theme="dark"] .filters label,
+  body[data-theme="dark"] .chips label { background: #1e293b; border-color: #334155; color: #e2e8f0; }
+  body[data-theme="dark"] .type-btn.active, body[data-theme="dark"] .filters label.on,
+  body[data-theme="dark"] .chips label.on { background: #1e3a5f; border-color: #3b82f6; color: #93c5fd; box-shadow: none; }
+  body[data-theme="dark"] .type-btn .sz, body[data-theme="dark"] .muted,
+  body[data-theme="dark"] footer, body[data-theme="dark"] .editor-tip { color: #94a3b8; }
+  body[data-theme="dark"] .wm-input, body[data-theme="dark"] #fbText,
+  body[data-theme="dark"] #ocrText, body[data-theme="dark"] .set-sel { background: #0f172a; border-color: #334155; color: #e2e8f0; }
+  body[data-theme="dark"] .btn-ghost { background: #334155; color: #e2e8f0; }
+  body[data-theme="dark"] .badge { background: #14532d; color: #86efac; }
+  body[data-theme="dark"] .badge.online { background: #1e3a5f; color: #93c5fd; }
+  body[data-theme="dark"] .notice { background: #422006; border-color: #92400e; color: #fcd34d; }
+  body[data-theme="dark"] .step-no { background: #3b82f6; }
+  body[data-theme="dark"] .file-item { border-color: #334155; }
+  body[data-theme="dark"] .set-row { border-color: #334155; }
+  body[data-theme="dark"] .add-slot, body[data-theme="dark"] .more-tile { background: transparent; }
+  body[data-theme="dark"] .mode-row { color: #cbd5e1; }
+  /* ---- 字号 ---- */
+  body.fs-l { zoom: 1.12; }
+  body.fs-xl { zoom: 1.28; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1><img id="logoImg" alt="" style="width:34px;height:34px;border-radius:8px;vertical-align:-7px;margin-right:6px"> 证件扫描</h1>
+    <div class="badge" id="modeBadge">🔒 100% 本地处理 · 图片不离开你的电脑 · 可断网使用</div>
+    <div class="mode-row">
+      <label class="switch">
+        <input type="checkbox" id="onlineToggle">
+        <span class="track"></span>
+      </label>
+      <span id="modeLabel">🌐 在线增强：关闭</span>
+      <span class="muted" id="modeStatus"></span>
+    </div>
+    <div class="mode-row">
+      <button class="btn btn-ghost btn-sm" id="btnShare">📤 分享</button>
+      <button class="btn btn-ghost btn-sm" id="btnFeedback">💬 投诉与建议</button>
+      <button class="btn btn-ghost btn-sm" id="btnSettings">⚙ 设置</button>
+    </div>
+  </header>
+
+  <div class="card">
+    <div class="type-head">
+      <h2><span class="step-no">1</span>选择证件类型</h2>
+      <button class="btn btn-ghost btn-sm" id="btnManageTypes">⚙ 自定义</button>
+    </div>
+    <p class="muted hidden" id="manageTip" style="margin-bottom:10px">点 ★ 收藏常用证件到主界面，点 ☆ 移出。设置保存在本机，下次打开保持不变。</p>
+    <div class="type-grid" id="typeGrid"></div>
+  </div>
+
+  <div class="card">
+    <h2><span class="step-no">2</span>上传照片并裁剪校正</h2>
+    <div class="slots" id="slots"></div>
+    <div id="editor" class="hidden">
+      <p class="editor-tip">拖动 4 个圆点对准证件的四个角，然后点"应用裁剪"。支持斜拍照片的透视矫正。</p>
+      <canvas id="editorCanvas"></canvas>
+      <div class="row" style="margin-top:10px">
+        <button class="btn btn-ghost btn-sm" id="btnRotate">↻ 旋转 90°</button>
+        <button class="btn btn-ghost btn-sm" id="btnResetQuad">重置四角</button>
+        <button class="btn btn-primary btn-sm" id="btnApply">✓ 应用裁剪</button>
+        <button class="btn btn-ghost btn-sm" id="btnCancelEdit">取消</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2><span class="step-no">3</span>扫描效果与防盗用水印</h2>
+    <div class="row filters" id="filterRow">
+      <label data-v="enhance" class="on"><input type="radio" name="f" value="enhance" checked>✨ 扫描增强</label>
+      <label data-v="none"><input type="radio" name="f" value="none">原图</label>
+      <label data-v="gray"><input type="radio" name="f" value="gray">灰度</label>
+      <label data-v="bw"><input type="radio" name="f" value="bw">黑白复印</label>
+    </div>
+    <div class="row" style="margin-top:12px">
+      <input class="wm-input" id="wmText" maxlength="40"
+             placeholder="平铺水印（浅色铺满整页，如：仅供办理XX业务使用）">
+    </div>
+    <div class="row" style="margin-top:12px">
+      <input class="wm-input" id="stmtText" maxlength="50"
+             placeholder="用途声明（清晰横写在证件图面上，如：此件仅用于办理银行开户）">
+      <label style="font-size:14px;display:flex;align-items:center;gap:5px;cursor:pointer;user-select:none">
+        <input type="checkbox" id="stmtDate" checked> 附当天日期
+      </label>
+    </div>
+    <div class="row chips" id="stmtChips" style="margin-top:8px">
+      <label data-t="此件仅用于办理银行业务，他用无效">银行业务</label>
+      <label data-t="此件仅用于办理入职手续，他用无效">入职手续</label>
+      <label data-t="此件仅用于办理租房合同，他用无效">租房合同</label>
+      <label data-t="此件仅用于办理签证申请，他用无效">签证申请</label>
+    </div>
+    <p class="muted" id="wmTip" style="margin-top:8px">提示：平铺水印防整页盗用；用途声明按办事惯例压写在证件图像上（防止裁剪去除），可同时使用。</p>
+  </div>
+
+  <div class="card">
+    <h2><span class="step-no">4</span>A4 预览与导出（1:1 实际尺寸，300 DPI）</h2>
+    <div id="a4PreviewWrap"></div>
+    <div class="row export-row">
+      <button class="btn btn-dark" id="btnPng" disabled>⬇ 下载 PNG</button>
+      <button class="btn btn-primary" id="btnPdf" disabled>⬇ 下载 PDF</button>
+      <button class="btn btn-ghost" id="btnPrint" disabled>🖨 打印</button>
+      <button class="btn btn-ghost" id="btnSave" disabled>💾 存入文件夹</button>
+      <button class="btn btn-ghost" id="btnOcr" disabled>🔠 识别文字</button>
+    </div>
+    <p class="muted" id="ocrTip" style="margin-top:8px;text-align:center">识别文字（OCR）在本机浏览器内完成，支持中英文；首次使用需联网下载约 15MB 组件，之后可离线。</p>
+    <div class="notice">⚖️ 请仅处理<strong>本人证件</strong>并用于合法用途。伪造、变造或冒用他人证件属违法行为。</div>
+  </div>
+
+  <div class="card">
+    <h2><span class="step-no">5</span>我的文件夹</h2>
+    <p class="muted" id="folderDesc" style="margin-bottom:10px">做好的扫描件可存在这里，下次办事直接下载，无需重拍重裁。文件只保存在<strong>本机浏览器</strong>中（IndexedDB），不上传；清除浏览器网站数据会一并删除，请注意备份重要文件。</p>
+    <div id="fileList"><p class="muted">暂无保存的文件。生成扫描件后点"💾 存入文件夹"。</p></div>
+  </div>
+
+  <footer><span id="footText">纯浏览器本地运算 · 无服务器 · 无统计 · 可保存此文件离线使用</span> · <a id="installHint" class="hidden" href="#" style="color:#2563eb;text-decoration:underline">添加到主屏幕</a></footer>
+</div>
+<div id="busy" class="hidden">处理中…</div>
+
+<div id="fbMask" class="hidden">
+  <div class="fb-dialog">
+    <div class="fb-head">
+      <h3 id="fbTitle">⚠️ 投诉 / 反馈</h3>
+      <button class="btn btn-ghost btn-sm" id="fbClose">✕</button>
+    </div>
+    <div class="fb-tabs">
+      <button class="fb-tab on" id="fbTabC"><strong>我要投诉</strong>下载、效果等问题</button>
+      <button class="fb-tab" id="fbTabS"><strong>意见建议</strong>功能建议、体验反馈</button>
+    </div>
+    <div id="fbPaneC">
+      <div class="fb-hintbox" id="fbHintC"><strong>请选择与您情况相符的项（可多选）</strong><br>点一下即可，无需懂技术。</div>
+      <div class="row chips" id="fbIssueChips">
+        <label data-t="无法下载或下载失败">无法下载或下载失败</label>
+        <label data-t="导出的PDF打不开">导出的PDF打不开</label>
+        <label data-t="裁剪/矫正效果不满意">裁剪/矫正效果不满意</label>
+        <label data-t="水印或声明显示异常">水印或声明显示异常</label>
+        <label data-t="文字识别不准">文字识别不准</label>
+        <label data-t="页面卡顿或报错">页面卡顿或报错</label>
+        <label data-t="其他问题">其他问题</label>
+      </div>
+    </div>
+    <div id="fbPaneS" class="hidden">
+      <div class="fb-hintbox" id="fbHintS"><strong>写下您的建议</strong><br>您的想法对我们很重要，写几句即可，无需填写技术信息。</div>
+    </div>
+    <textarea id="fbText" maxlength="500" placeholder="补充说明（选填）：还有什么想说明的，可以写在这里…"></textarea>
+    <input class="wm-input" id="fbContact" maxlength="50" style="margin-top:10px"
+           placeholder="联系方式（选填：邮箱或微信，便于回复您）">
+    <p class="muted" id="fbPrivacy" style="margin-top:8px">反馈只包含您选择和填写的内容，不会附带任何图片或个人信息；联系方式可不填。</p>
+    <div class="row" style="margin-top:12px">
+      <button class="btn btn-primary" id="fbSubmit" style="flex:1">📨 提交</button>
+      <button class="btn btn-ghost" id="fbContactUs" style="flex:1">💬 联系作者</button>
+    </div>
+  </div>
+</div>
+
+<div id="setMask" class="hidden">
+  <div class="fb-dialog">
+    <div class="fb-head">
+      <h3 id="setTitle">⚙ 显示设置</h3>
+      <button class="btn btn-ghost btn-sm" id="setClose">✕</button>
+    </div>
+    <div class="set-row"><span id="setLangLab">语言 / Language</span>
+      <select id="selLang" class="set-sel">
+        <option value="zh">🇨🇳 中文</option>
+        <option value="en">🇺🇸 English</option>
+      </select>
+    </div>
+    <div class="set-row"><span id="setThemeLab">主题</span>
+      <select id="selTheme" class="set-sel">
+        <option value="light">🌞 默认浅色</option>
+        <option value="green">🌿 护眼绿</option>
+        <option value="dark">🌙 深色</option>
+      </select>
+    </div>
+    <div class="set-row"><span id="setFontLab">字号</span>
+      <select id="selFont" class="set-sel">
+        <option value="std">标准</option>
+        <option value="l">大</option>
+        <option value="xl">特大</option>
+      </select>
+    </div>
+    <p class="muted" id="setTip" style="margin-top:10px">设置保存在本机，下次打开保持不变。</p>
+  </div>
+</div>
+
+<div id="ocrMask" class="hidden">
+  <div class="fb-dialog">
+    <div class="fb-head">
+      <h3 id="ocrTitle">🔠 识别结果</h3>
+      <button class="btn btn-ghost btn-sm" id="ocrClose">✕</button>
+    </div>
+    <textarea id="ocrText"></textarea>
+    <div class="row" style="margin-top:12px">
+      <button class="btn btn-primary" id="ocrCopy" style="flex:1">复制全部</button>
+    </div>
+  </div>
+</div>
+
+<script>
+'use strict';
+let deferredPrompt;
+window.addEventListener('beforeinstallprompt', e => {
+  e.preventDefault();
+  deferredPrompt = e;
+  const hint = document.getElementById('installHint');
+  hint.classList.remove('hidden');
+  hint.onclick = async ev => {
+    ev.preventDefault();
+    if (!deferredPrompt) return;
+    deferredPrompt.prompt();
+    const { outcome } = await deferredPrompt.userChoice;
+    if (outcome === 'accepted') hint.classList.add('hidden');
+    deferredPrompt = null;
+  };
+});
+
+/* ---------------- 证件预设（物理尺寸 mm） ---------------- */
+const PRESETS = [
+  { id:'id-card',   name:'身份证',       ico:'🪪', w:85.6, h:54,  sides:['正面（人像面）','反面（国徽面）'] },
+  { id:'bank-card', name:'银行卡',       ico:'💳', w:85.6, h:54,  sides:['正面','反面'] },
+  { id:'driver',    name:'驾驶证',       ico:'🚗', w:88,   h:60,  sides:['主页','副页'] },
+  { id:'vehicle',   name:'行驶证',       ico:'🚙', w:88,   h:125, sides:['主页','副页'] },
+  { id:'household', name:'户口本',       ico:'📒', w:143,  h:105, sides:['户主页','本人内页'], expandable:true, pageLabel:'内页' },
+  { id:'passport',  name:'护照资料页',   ico:'🛂', w:125,  h:88,  sides:['资料页'] },
+  { id:'hk-pass',   name:'港澳通行证',   ico:'🇭🇰', w:85.6, h:54,  sides:['正面','反面'] },
+  { id:'tw-pass',   name:'台湾通行证',   ico:'🇹🇼', w:85.6, h:54,  sides:['正面','反面'] },
+  { id:'marriage',  name:'结婚证',       ico:'💒', w:128,  h:91,  sides:['内页'] },
+  { id:'diploma',   name:'毕业证书',     ico:'🎓', w:210,  h:297, sides:['证书页'] },
+  { id:'degree',    name:'学位证书',     ico:'📜', w:210,  h:297, sides:['证书页'] },
+  { id:'property',  name:'不动产权证',   ico:'🏠', w:105,  h:148, sides:['证书页'] },
+  { id:'license',   name:'营业执照',     ico:'🏛️', w:210,  h:297, sides:['执照页'] },
+  { id:'org-code',  name:'组织机构代码', ico:'🏢', w:148,  h:105, sides:['证书页'] },
+  { id:'tax-reg',   name:'税务登记证',   ico:'📋', w:210,  h:297, sides:['证书页'] },
+  { id:'social-sec',name:'社保卡',       ico:'🏥', w:85.6, h:54,  sides:['正面','反面'] },
+  { id:'residence', name:'居住证',       ico:'🏘️', w:85.6, h:54,  sides:['正面','反面'] },
+  { id:'birth',     name:'出生证明',     ico:'👶', w:148,  h:210, sides:['证明页'] },
+  { id:'contract',  name:'合同文件',     ico:'📄', w:210,  h:297, sides:['第1页','第2页','第3页'], expandable:true },
+  { id:'doc',       name:'普通文档',     ico:'📃', w:190,  h:270, sides:['第1页'], expandable:true },
+];
+const MM2PX = 300 / 25.4;           // 300 DPI
+const A4W = 2480, A4H = 3508;       // A4 @300dpi
+
+let preset = PRESETS[0];
+let sides = [];        // [{src:canvas|null, quad:[{x,y}×4]|null, warped:canvas|null}]
+let editingIdx = -1;
+let filter = 'enhance';
+
+const $ = id => document.getElementById(id);
+const busy = (on, msg) => {
+  const b = $('busy');
+  b.textContent = msg || (typeof uiLang !== 'undefined' && uiLang === 'en' ? 'Processing…' : '处理中…');
+  b.classList.toggle('hidden', !on);
+};
+
+/* ---------------- 类型选择（可自定义常用集） ---------------- */
+const DEFAULT_PINNED = ['id-card','bank-card','driver','household','passport','license','contract','doc'];
+let pinnedIds = (() => {
+  try {
+    const v = JSON.parse(localStorage.getItem('pinned_types'));
+    if (Array.isArray(v) && v.length) return v.filter(id => PRESETS.some(p => p.id === id));
+  } catch {}
+  return [...DEFAULT_PINNED];
+})();
+let manageMode = false;
+
+function savePinned() { localStorage.setItem('pinned_types', JSON.stringify(pinnedIds)); }
+
+function renderTypes() {
+  const g = $('typeGrid'); g.innerHTML = '';
+  const list = manageMode ? PRESETS
+    : PRESETS.filter(p => pinnedIds.includes(p.id) || p === preset);
+  list.forEach(p => {
+    const b = document.createElement('button');
+    b.className = 'type-btn' + (p === preset ? ' active' : '');
+    b.innerHTML = `<span class="ico">${p.ico}</span>${T(p.name)}<span class="sz">${p.w}×${p.h}mm</span>`;
+    if (manageMode) {
+      const star = document.createElement('span');
+      const on = pinnedIds.includes(p.id);
+      star.className = 'pin-star' + (on ? ' pinned' : '');
+      star.textContent = on ? '★' : '☆';
+      star.title = on ? '移出主界面' : '收藏到主界面';
+      star.onclick = e => {
+        e.stopPropagation();
+        if (on) {
+          if (pinnedIds.length <= 1) { alert(T('至少保留一个常用证件类型。')); return; }
+          pinnedIds = pinnedIds.filter(x => x !== p.id);
+        } else pinnedIds.push(p.id);
+        savePinned(); renderTypes();
+      };
+      b.appendChild(star);
+    }
+    b.onclick = () => {
+      if (preset === p) return;
+      preset = p;
+      resetSides(); renderTypes();
+    };
+    g.appendChild(b);
+  });
+  if (!manageMode) {
+    const more = document.createElement('button');
+    more.className = 'type-btn more-tile';
+    more.innerHTML = `<span class="ico">⋯</span>${T('更多证件')}<span class="sz">${uiLang === 'en' ? PRESETS.length + ' types · customizable' : '共' + PRESETS.length + '种，可自定义'}</span>`;
+    more.onclick = () => setManageMode(true);
+    g.appendChild(more);
+  }
+}
+function setManageMode(on) {
+  manageMode = on;
+  $('btnManageTypes').textContent = on ? T('✓ 完成') : T('⚙ 自定义');
+  $('manageTip').classList.toggle('hidden', !on);
+  renderTypes();
+}
+$('btnManageTypes').onclick = () => setManageMode(!manageMode);
+function initTypes() { renderTypes(); }
+function resetSides() {
+  sides = preset.sides.map(label => ({ label, src:null, quad:null, warped:null }));
+  editingIdx = -1;
+  $('editor').classList.add('hidden');
+  renderSlots(); renderA4();
+}
+const MAX_PAGES = 20;
+function pageLabel(k) {
+  return preset.pageLabel ? `${preset.pageLabel}${k+1}` : `第${k+1}页`;
+}
+function addPage() {
+  if (sides.length >= MAX_PAGES) return;
+  sides.push({ label: pageLabel(sides.length), src:null, quad:null, warped:null });
+  renderSlots(); renderA4();
+}
+function removePage(i) {
+  sides.splice(i, 1);
+  sides.forEach((s, k) => { if (/^(第\d+页|内页\d+)$/.test(s.label)) s.label = pageLabel(k); });
+  if (editingIdx === i) { editingIdx = -1; $('editor').classList.add('hidden'); }
+  else if (editingIdx > i) editingIdx--;
+  renderSlots(); renderA4();
+}
+
+/* ---------------- 上传槽位 ---------------- */
+function renderSlots() {
+  const box = $('slots'); box.innerHTML = '';
+  sides.forEach((s, i) => {
+    const d = document.createElement('div');
+    d.className = 'slot' + (s.warped ? ' done' : '');
+    const lab = document.createElement('div');
+    lab.className = 'label'; lab.textContent = T(s.label);
+    d.appendChild(lab);
+    if (s.warped) {
+      const img = document.createElement('img');
+      img.className = 'thumb'; img.src = s.warped.toDataURL('image/jpeg', .8);
+      d.appendChild(img);
+      const row = document.createElement('div'); row.style.marginTop = '8px';
+      const b1 = document.createElement('button');
+      b1.className = 'btn btn-ghost btn-sm'; b1.textContent = T('重新编辑');
+      b1.onclick = () => openEditor(i);
+      const b2 = document.createElement('button');
+      b2.className = 'btn btn-ghost btn-sm'; b2.textContent = T('换图');
+      b2.style.marginLeft = '8px';
+      b2.onclick = () => pickFile(i);
+      row.appendChild(b1); row.appendChild(b2); d.appendChild(row);
+    } else {
+      const b = document.createElement('button');
+      b.className = 'btn btn-primary btn-sm'; b.textContent = T('＋ 选择照片');
+      b.onclick = () => pickFile(i);
+      d.appendChild(b);
+      const p = document.createElement('p');
+      p.className = 'muted'; p.textContent = T('支持手机斜拍照片');
+      d.appendChild(p);
+    }
+    if (preset.expandable && sides.length > 1) {
+      const del = document.createElement('button');
+      del.className = 'btn btn-ghost btn-sm';
+      del.textContent = T('✕ 删除此页');
+      del.style.marginTop = '8px';
+      del.onclick = () => removePage(i);
+      d.appendChild(document.createElement('br'));
+      d.appendChild(del);
+    }
+    box.appendChild(d);
+  });
+  if (preset.expandable && sides.length < MAX_PAGES) {
+    const add = document.createElement('button');
+    add.className = 'slot add-slot';
+    add.innerHTML = '<span style="font-size:30px;line-height:1">＋</span>' + T('添加一页');
+    add.onclick = addPage;
+    box.appendChild(add);
+  }
+}
+function pickFile(i) {
+  const inp = document.createElement('input');
+  inp.type = 'file'; inp.accept = 'image/*'; inp.capture = 'environment';
+  inp.onchange = () => {
+    const f = inp.files[0]; if (!f) return;
+    const url = URL.createObjectURL(f);
+    const img = new Image();
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      // 降采样到最长边 2600px，保证透视矫正速度
+      const M = 2600, sc = Math.min(1, M / Math.max(img.width, img.height));
+      const c = document.createElement('canvas');
+      c.width = Math.round(img.width * sc); c.height = Math.round(img.height * sc);
+      c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+      sides[i] = { label: sides[i].label, src:c, quad:null, warped:null };
+      openEditor(i);
+    };
+    img.src = url;
+  };
+  inp.click();
+}
+
+/* ---------------- 四角编辑器 ---------------- */
+const ecv = $('editorCanvas'), ectx = ecv.getContext('2d');
+let eScale = 1, dragIdx = -1;
+
+function defaultQuad(w, h) {
+  const mx = w * .08, my = h * .08;
+  return [{x:mx,y:my},{x:w-mx,y:my},{x:w-mx,y:h-my},{x:mx,y:h-my}];
+}
+function openEditor(i) {
+  editingIdx = i;
+  const s = sides[i];
+  if (!s.quad) s.quad = defaultQuad(s.src.width, s.src.height);
+  const maxW = Math.min(820, $('editor').parentElement.clientWidth - 40) || 700;
+  eScale = Math.min(maxW / s.src.width, 560 / s.src.height, 1);
+  ecv.width = Math.round(s.src.width * eScale);
+  ecv.height = Math.round(s.src.height * eScale);
+  $('editor').classList.remove('hidden');
+  drawEditor();
+  ecv.scrollIntoView({ behavior:'smooth', block:'center' });
+}
+function drawEditor() {
+  const s = sides[editingIdx]; if (!s) return;
+  ectx.clearRect(0, 0, ecv.width, ecv.height);
+  ectx.drawImage(s.src, 0, 0, ecv.width, ecv.height);
+  const q = s.quad.map(p => ({ x:p.x*eScale, y:p.y*eScale }));
+  // 四边形外部压暗
+  ectx.save();
+  ectx.beginPath();
+  ectx.rect(0, 0, ecv.width, ecv.height);
+  ectx.moveTo(q[0].x, q[0].y);
+  for (let k = 3; k >= 1; k--) ectx.lineTo(q[k].x, q[k].y);
+  ectx.closePath();
+  ectx.fillStyle = 'rgba(15,23,42,.45)';
+  ectx.fill('evenodd');
+  ectx.restore();
+  // 边线与角点
+  ectx.strokeStyle = '#3b82f6'; ectx.lineWidth = 2;
+  ectx.beginPath();
+  ectx.moveTo(q[0].x, q[0].y);
+  for (let k = 1; k < 4; k++) ectx.lineTo(q[k].x, q[k].y);
+  ectx.closePath(); ectx.stroke();
+  q.forEach((p, k) => {
+    ectx.beginPath(); ectx.arc(p.x, p.y, 9, 0, Math.PI*2);
+    ectx.fillStyle = k === dragIdx ? '#1d4ed8' : '#60a5fa';
+    ectx.fill();
+    ectx.strokeStyle = '#fff'; ectx.lineWidth = 2.5; ectx.stroke();
+  });
+}
+function evPos(e) {
+  const r = ecv.getBoundingClientRect();
+  return { x:(e.clientX - r.left) * ecv.width / r.width, y:(e.clientY - r.top) * ecv.height / r.height };
+}
+ecv.addEventListener('pointerdown', e => {
+  if (editingIdx < 0) return;
+  const p = evPos(e), s = sides[editingIdx];
+  let best = -1, bd = 56 * 56;
+  s.quad.forEach((c, k) => {
+    const dx = c.x*eScale - p.x, dy = c.y*eScale - p.y, d = dx*dx + dy*dy;
+    if (d < bd) { bd = d; best = k; }
+  });
+  dragIdx = best;
+  if (best >= 0) ecv.setPointerCapture(e.pointerId);
+  drawEditor();
+});
+ecv.addEventListener('pointermove', e => {
+  if (dragIdx < 0 || editingIdx < 0) return;
+  const p = evPos(e), s = sides[editingIdx];
+  s.quad[dragIdx] = {
+    x: Math.max(0, Math.min(s.src.width,  p.x / eScale)),
+    y: Math.max(0, Math.min(s.src.height, p.y / eScale)),
+  };
+  drawEditor();
+});
+ecv.addEventListener('pointerup', () => { dragIdx = -1; drawEditor(); });
+
+$('btnResetQuad').onclick = () => {
+  const s = sides[editingIdx];
+  s.quad = defaultQuad(s.src.width, s.src.height);
+  drawEditor();
+};
+$('btnRotate').onclick = () => {
+  const s = sides[editingIdx], c = s.src;
+  const n = document.createElement('canvas');
+  n.width = c.height; n.height = c.width;
+  const x = n.getContext('2d');
+  x.translate(n.width, 0); x.rotate(Math.PI/2); x.drawImage(c, 0, 0);
+  s.src = n; s.quad = defaultQuad(n.width, n.height);
+  openEditor(editingIdx);
+};
+$('btnCancelEdit').onclick = () => { editingIdx = -1; $('editor').classList.add('hidden'); };
+$('btnApply').onclick = () => {
+  const i = editingIdx, s = sides[i];
+  busy(true);
+  setTimeout(() => {
+    // 目标像素尺寸：物理尺寸 @300dpi，总像素超 500 万时自动降分辨率
+    let ow = Math.round(preset.w * MM2PX), oh = Math.round(preset.h * MM2PX);
+    const cap = 5e6;
+    if (ow * oh > cap) { const k = Math.sqrt(cap / (ow * oh)); ow = Math.round(ow*k); oh = Math.round(oh*k); }
+    s.warped = warpPerspective(s.src, s.quad, ow, oh);
+    busy(false);
+    editingIdx = -1; $('editor').classList.add('hidden');
+    renderSlots(); renderA4();
+  }, 30);
+};
+
+/* ---------------- 透视矫正（单应矩阵 + 双线性采样） ---------------- */
+function solveH(dstW, dstH, q) {
+  // 求将目标矩形角点映射到源四边形 q 的单应矩阵 (a..h)
+  const dst = [[0,0],[dstW,0],[dstW,dstH],[0,dstH]];
+  const A = [], b = [];
+  for (let i = 0; i < 4; i++) {
+    const [x, y] = dst[i], u = q[i].x, v = q[i].y;
+    A.push([x, y, 1, 0, 0, 0, -u*x, -u*y]); b.push(u);
+    A.push([0, 0, 0, x, y, 1, -v*x, -v*y]); b.push(v);
+  }
+  // 高斯消元
+  for (let c = 0; c < 8; c++) {
+    let piv = c;
+    for (let r = c+1; r < 8; r++) if (Math.abs(A[r][c]) > Math.abs(A[piv][c])) piv = r;
+    [A[c], A[piv]] = [A[piv], A[c]]; [b[c], b[piv]] = [b[piv], b[c]];
+    const d = A[c][c];
+    for (let k = c; k < 8; k++) A[c][k] /= d;
+    b[c] /= d;
+    for (let r = 0; r < 8; r++) {
+      if (r === c) continue;
+      const f = A[r][c];
+      if (!f) continue;
+      for (let k = c; k < 8; k++) A[r][k] -= f * A[c][k];
+      b[r] -= f * b[c];
+    }
+  }
+  return b; // [a,b,c,d,e,f,g,h]
+}
+function warpPerspective(srcCanvas, quad, ow, oh) {
+  const H = solveH(ow, oh, quad);
+  const sctx = srcCanvas.getContext('2d');
+  const sd = sctx.getImageData(0, 0, srcCanvas.width, srcCanvas.height);
+  const sw = sd.width, sh = sd.height, sp = sd.data;
+  const out = document.createElement('canvas');
+  out.width = ow; out.height = oh;
+  const octx = out.getContext('2d');
+  const od = octx.createImageData(ow, oh), op = od.data;
+  const [a,b,c,d,e,f,g,h] = H;
+  for (let y = 0; y < oh; y++) {
+    for (let x = 0; x < ow; x++) {
+      const w = g*x + h*y + 1;
+      const sx = (a*x + b*y + c) / w, sy = (d*x + e*y + f) / w;
+      const o = (y*ow + x) * 4;
+      if (sx < 0 || sy < 0 || sx > sw-1 || sy > sh-1) {
+        op[o] = op[o+1] = op[o+2] = 255; op[o+3] = 255; continue;
+      }
+      const x0 = sx|0, y0 = sy|0;
+      const x1 = Math.min(x0+1, sw-1), y1 = Math.min(y0+1, sh-1);
+      const fx = sx-x0, fy = sy-y0;
+      const i00 = (y0*sw+x0)*4, i10 = (y0*sw+x1)*4, i01 = (y1*sw+x0)*4, i11 = (y1*sw+x1)*4;
+      for (let ch = 0; ch < 3; ch++) {
+        op[o+ch] =
+          sp[i00+ch]*(1-fx)*(1-fy) + sp[i10+ch]*fx*(1-fy) +
+          sp[i01+ch]*(1-fx)*fy    + sp[i11+ch]*fx*fy;
+      }
+      op[o+3] = 255;
+    }
+  }
+  octx.putImageData(od, 0, 0);
+  return out;
+}
+
+/* ---------------- 滤镜 ---------------- */
+function applyFilter(cv, mode) {
+  if (mode === 'none') return cv;
+  const w = cv.width, h = cv.height;
+  const out = document.createElement('canvas');
+  out.width = w; out.height = h;
+  const x = out.getContext('2d');
+  x.drawImage(cv, 0, 0);
+  const img = x.getImageData(0, 0, w, h), p = img.data, n = w * h;
+  const hist = new Uint32Array(256);
+  for (let i = 0; i < n; i++) {
+    const o = i*4;
+    hist[(p[o]*0.299 + p[o+1]*0.587 + p[o+2]*0.114) | 0]++;
+  }
+  if (mode === 'enhance') {
+    // 2% / 97% 分位做白平衡拉伸
+    let lo = 0, hi = 255, acc = 0;
+    for (let v = 0; v < 256; v++) { acc += hist[v]; if (acc > n*0.02) { lo = v; break; } }
+    acc = 0;
+    for (let v = 255; v >= 0; v--) { acc += hist[v]; if (acc > n*0.03) { hi = v; break; } }
+    if (hi - lo < 30) { lo = 0; hi = 255; }
+    const k = 255 / (hi - lo);
+    const lut = new Uint8ClampedArray(256);
+    for (let v = 0; v < 256; v++) lut[v] = (v - lo) * k;
+    for (let i = 0; i < n*4; i += 4) { p[i]=lut[p[i]]; p[i+1]=lut[p[i+1]]; p[i+2]=lut[p[i+2]]; }
+  } else if (mode === 'gray') {
+    for (let i = 0; i < n*4; i += 4) {
+      const g = p[i]*0.299 + p[i+1]*0.587 + p[i+2]*0.114;
+      p[i] = p[i+1] = p[i+2] = g;
+    }
+  } else if (mode === 'bw') {
+    // Otsu 阈值
+    let sum = 0;
+    for (let v = 0; v < 256; v++) sum += v * hist[v];
+    let sumB = 0, wB = 0, maxVar = 0, th = 127;
+    for (let v = 0; v < 256; v++) {
+      wB += hist[v]; if (!wB) continue;
+      const wF = n - wB; if (!wF) break;
+      sumB += v * hist[v];
+      const mB = sumB / wB, mF = (sum - sumB) / wF, dv = wB * wF * (mB - mF) * (mB - mF);
+      if (dv > maxVar) { maxVar = dv; th = v; }
+    }
+    for (let i = 0; i < n*4; i += 4) {
+      const g = p[i]*0.299 + p[i+1]*0.587 + p[i+2]*0.114;
+      const v = g > th ? 255 : 0;
+      p[i] = p[i+1] = p[i+2] = v;
+    }
+  }
+  x.putImageData(img, 0, 0);
+  return out;
+}
+
+/* ---------------- A4 排版（自动分页） ---------------- */
+let a4Pages = [];   // 每个元素是一张 A4 canvas
+
+function renderA4() {
+  a4Pages = [];
+  const ready = sides.filter(s => s.warped);
+  if (ready.length) {
+    const gap = Math.round(14 * MM2PX), margin = Math.round(10 * MM2PX);
+    const imgs = ready.map(s => applyFilter(s.warped, filter));
+    const cardW = Math.round(preset.w * MM2PX), cardH = Math.round(preset.h * MM2PX);
+    // 单张卡缩放到不超过页面可用区（A4 尺寸文档≈整页一张）
+    const scale = Math.min(1, (A4W - margin*2) / cardW, (A4H - margin*2) / cardH);
+    const dw = cardW * scale, dh = cardH * scale;
+    const perPage = Math.max(1, Math.floor((A4H - margin*2 + gap) / (dh + gap)));
+    const wm = $('wmText').value.trim();
+    for (let p = 0; p < imgs.length; p += perPage) {
+      const group = imgs.slice(p, p + perPage);
+      const cv = document.createElement('canvas');
+      cv.width = A4W; cv.height = A4H;
+      const ctx = cv.getContext('2d');
+      ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, A4W, A4H);
+      let y = (A4H - (dh * group.length + gap * (group.length - 1))) / 2;
+      group.forEach(im => {
+        const xpos = (A4W - dw) / 2;
+        ctx.save();
+        ctx.shadowColor = 'rgba(15,23,42,.18)'; ctx.shadowBlur = 18; ctx.shadowOffsetY = 6;
+        ctx.fillStyle = '#fff'; ctx.fillRect(xpos, y, dw, dh);
+        ctx.restore();
+        ctx.drawImage(im, xpos, y, dw, dh);
+        ctx.strokeStyle = 'rgba(100,116,139,.35)'; ctx.lineWidth = 2;
+        ctx.strokeRect(xpos, y, dw, dh);
+        drawStatement(ctx, xpos, y, dw, dh);
+        y += dh + gap;
+      });
+      if (wm) drawWatermark(ctx, wm);
+      a4Pages.push(cv);
+    }
+  }
+  // 缩略预览（每页一张）
+  const wrap = $('a4PreviewWrap'); wrap.innerHTML = '';
+  const pageList = a4Pages.length ? a4Pages : [null];
+  pageList.forEach((pg, i) => {
+    const pv = document.createElement('canvas');
+    pv.className = 'a4page';
+    pv.width = 620; pv.height = Math.round(620 * A4H / A4W);
+    const pctx = pv.getContext('2d');
+    pctx.fillStyle = '#fff'; pctx.fillRect(0, 0, pv.width, pv.height);
+    if (pg) pctx.drawImage(pg, 0, 0, pv.width, pv.height);
+    wrap.appendChild(pv);
+    if (a4Pages.length > 1) {
+      const cap = document.createElement('div');
+      cap.className = 'muted'; cap.style.textAlign = 'center';
+      cap.textContent = uiLang === 'en' ? `Page ${i + 1} / ${a4Pages.length}` : `第 ${i + 1} / ${a4Pages.length} 页`;
+      wrap.appendChild(cap);
+    }
+  });
+  const ok = a4Pages.length > 0;
+  $('btnPng').disabled = $('btnPdf').disabled = $('btnPrint').disabled = $('btnSave').disabled = $('btnOcr').disabled = !ok;
+}
+
+/* 用途声明：按办事惯例压写在证件图像上，蓝色仿手写，带日期 */
+function drawStatement(ctx, x, y, w, h) {
+  const t = $('stmtText').value.trim();
+  if (!t) return;
+  let dateStr = '';
+  if ($('stmtDate').checked) {
+    const d = new Date();
+    dateStr = uiLang === 'en'
+      ? d.toLocaleDateString('en-US', { year:'numeric', month:'short', day:'numeric' })
+      : `${d.getFullYear()}年${d.getMonth()+1}月${d.getDate()}日`;
+  }
+  ctx.save();
+  ctx.translate(x + w/2, y + h/2);
+  ctx.rotate(-0.09);
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  let fs = Math.round(Math.min(h * 0.16, w * 0.1));
+  const fontOf = s => `600 ${s}px "Kaiti SC", KaiTi, STKaiti, "PingFang SC", "Microsoft YaHei", serif`;
+  ctx.font = fontOf(fs);
+  while (fs > 14 && ctx.measureText(t).width > w * 0.92) {
+    fs -= 2; ctx.font = fontOf(fs);
+  }
+  ctx.fillStyle = 'rgba(29,78,216,.6)';
+  ctx.fillText(t, 0, dateStr ? -fs * 0.5 : 0);
+  if (dateStr) {
+    ctx.font = fontOf(Math.round(fs * 0.62));
+    ctx.fillText(dateStr, 0, fs * 0.72);
+  }
+  ctx.restore();
+}
+function drawWatermark(ctx, text) {
+  ctx.save();
+  ctx.globalAlpha = 0.16;
+  ctx.fillStyle = '#475569';
+  ctx.font = '600 72px system-ui, "PingFang SC", "Microsoft YaHei", sans-serif';
+  ctx.textAlign = 'center';
+  ctx.translate(A4W/2, A4H/2);
+  ctx.rotate(-Math.PI/6);
+  const stepX = Math.max(ctx.measureText(text).width + 260, 900), stepY = 460;
+  for (let yy = -A4H; yy <= A4H; yy += stepY)
+    for (let xx = -A4W; xx <= A4W; xx += stepX)
+      ctx.fillText(text, xx + (Math.round(yy/stepY) % 2) * stepX/2, yy);
+  ctx.restore();
+}
+
+/* ---------------- 导出 ---------------- */
+function download(href, name) {
+  const aEl = document.createElement('a');
+  aEl.href = href; aEl.download = name; aEl.click();
+}
+$('btnPng').onclick = () => {
+  a4Pages.forEach((pg, i) => {
+    const suffix = a4Pages.length > 1 ? `_第${i+1}页` : '';
+    setTimeout(() => download(pg.toDataURL('image/png'), `${preset.name}_扫描件${suffix}.png`), i * 350);
+  });
+};
+$('btnPrint').onclick = () => {
+  const w = window.open('', '_blank');
+  const imgs = a4Pages.map(pg =>
+    `<img src="${pg.toDataURL('image/jpeg', .92)}">`).join('');
+  w.document.write(`<html><head><title>打印</title><style>@page{size:A4;margin:0}body{margin:0}img{width:100%;display:block;page-break-after:always}img:last-child{page-break-after:auto}</style></head><body onload="window.print()">${imgs}</body></html>`);
+  w.document.close();
+};
+$('btnPdf').onclick = () => {
+  const jpegs = a4Pages.map(pg => dataUrlToBytes(pg.toDataURL('image/jpeg', 0.92)));
+  const pdf = makePdf(jpegs, A4W, A4H);
+  const url = URL.createObjectURL(new Blob([pdf], { type:'application/pdf' }));
+  download(url, `${preset.name}_扫描件.pdf`);
+  setTimeout(() => URL.revokeObjectURL(url), 5000);
+};
+
+/* ---------------- 单页 PDF 生成（内嵌 JPEG） ---------------- */
+// PDF-GEN-START
+function dataUrlToBytes(u) {
+  const b = atob(u.split(',')[1]);
+  const arr = new Uint8Array(b.length);
+  for (let i = 0; i < b.length; i++) arr[i] = b.charCodeAt(i);
+  return arr;
+}
+function makePdf(jpegList, wPx, hPx) {
+  const enc = new TextEncoder();
+  const parts = []; let offset = 0; const xref = [];
+  const push = x => { const u = typeof x === 'string' ? enc.encode(x) : x; parts.push(u); offset += u.length; };
+  const obj = (num, body) => { xref[num] = offset; push(`${num} 0 obj\n${body}\nendobj\n`); };
+
+  push('%PDF-1.4\n');
+  push(new Uint8Array([0x25, 0xE2, 0xE3, 0xCF, 0xD3, 0x0A])); // 二进制标记注释
+  const W = 595.28, H = 841.89; // A4 pt
+  const n = jpegList.length;
+  // 对象编号：1=Catalog 2=Pages，之后每页占 3 个对象（Page/Contents/Image）
+  const kids = Array.from({ length: n }, (_, i) => `${3 + i*3} 0 R`).join(' ');
+  obj(1, '<< /Type /Catalog /Pages 2 0 R >>');
+  obj(2, `<< /Type /Pages /Kids [${kids}] /Count ${n} >>`);
+  jpegList.forEach((jpeg, i) => {
+    const pn = 3 + i*3, cn = pn + 1, imn = pn + 2;
+    obj(pn, `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${W} ${H}] ` +
+            `/Resources << /XObject << /Im${i} ${imn} 0 R >> >> /Contents ${cn} 0 R >>`);
+    const content = `q\n${W} 0 0 ${H} 0 0 cm\n/Im${i} Do\nQ\n`;
+    obj(cn, `<< /Length ${content.length} >>\nstream\n${content}endstream`);
+    xref[imn] = offset;
+    push(`${imn} 0 obj\n<< /Type /XObject /Subtype /Image /Width ${wPx} /Height ${hPx} ` +
+         `/ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode ` +
+         `/Length ${jpeg.length} >>\nstream\n`);
+    push(jpeg);
+    push('\nendstream\nendobj\n');
+  });
+
+  const maxObj = 2 + n*3;
+  const xrefStart = offset;
+  let x = `xref\n0 ${maxObj + 1}\n0000000000 65535 f \n`;
+  for (let i = 1; i <= maxObj; i++) x += String(xref[i]).padStart(10, '0') + ' 00000 n \n';
+  x += `trailer\n<< /Size ${maxObj + 1} /Root 1 0 R >>\nstartxref\n${xrefStart}\n%%EOF\n`;
+  push(x);
+
+  const total = parts.reduce((s, p) => s + p.length, 0);
+  const outBuf = new Uint8Array(total);
+  let pos = 0;
+  for (const p of parts) { outBuf.set(p, pos); pos += p.length; }
+  return outBuf;
+}
+// PDF-GEN-END
+
+/* ---------------- 滤镜 / 水印联动 ---------------- */
+document.querySelectorAll('#filterRow label').forEach(l => {
+  l.addEventListener('click', () => {
+    document.querySelectorAll('#filterRow label').forEach(x => x.classList.remove('on'));
+    l.classList.add('on');
+    filter = l.dataset.v;
+    renderA4();
+  });
+});
+let wmTimer;
+const debounceRender = () => { clearTimeout(wmTimer); wmTimer = setTimeout(renderA4, 250); };
+$('wmText').addEventListener('input', debounceRender);
+$('stmtText').addEventListener('input', debounceRender);
+$('stmtDate').addEventListener('change', renderA4);
+document.querySelectorAll('#stmtChips label').forEach(l => {
+  l.addEventListener('click', () => {
+    $('stmtText').value = T(l.dataset.t);
+    document.querySelectorAll('#stmtChips label').forEach(x => x.classList.remove('on'));
+    l.classList.add('on');
+    renderA4();
+  });
+});
+
+/* ---------------- 我的文件夹（IndexedDB，仅存本机） ---------------- */
+let _db = null;
+function openDB() {
+  if (_db) return _db;
+  _db = new Promise((res, rej) => {
+    const req = indexedDB.open('doc-scan-files', 1);
+    req.onupgradeneeded = () =>
+      req.result.createObjectStore('files', { keyPath:'id', autoIncrement:true });
+    req.onsuccess = () => res(req.result);
+    req.onerror = () => rej(req.error);
+  });
+  return _db;
+}
+async function dbReq(mode, fn) {
+  const db = await openDB();
+  return new Promise((res, rej) => {
+    const r = fn(db.transaction('files', mode).objectStore('files'));
+    r.onsuccess = () => res(r.result);
+    r.onerror = () => rej(r.error);
+  });
+}
+const dbAll = () => dbReq('readonly',  st => st.getAll());
+const dbGet = id => dbReq('readonly',  st => st.get(id));
+const dbAdd = rec => dbReq('readwrite', st => st.add(rec));
+const dbDel = id => dbReq('readwrite', st => st.delete(id));
+
+$('btnSave').onclick = async () => {
+  if (!a4Pages.length) return;
+  const defName = `${preset.name}_${new Date().toLocaleDateString('zh-CN')}`;
+  const name = prompt('给这份文件起个名字（方便以后查找）：', defName);
+  if (name === null) return;
+  busy(true);
+  try {
+    const pages = await Promise.all(a4Pages.map(pg =>
+      new Promise(r => pg.toBlob(r, 'image/jpeg', .92))));
+    const t = document.createElement('canvas');
+    t.width = 200; t.height = Math.round(200 * A4H / A4W);
+    t.getContext('2d').drawImage(a4Pages[0], 0, 0, t.width, t.height);
+    const thumb = await new Promise(r => t.toBlob(r, 'image/jpeg', .7));
+    await dbAdd({ name: name.trim() || defName, presetName: preset.name,
+                  date: Date.now(), pageCount: pages.length, pages, thumb });
+    await renderFileList();
+  } catch (e) {
+    alert('保存失败：' + e.message);
+  } finally { busy(false); }
+};
+
+let _thumbUrls = [];
+async function renderFileList() {
+  const box = $('fileList');
+  _thumbUrls.forEach(u => URL.revokeObjectURL(u));
+  _thumbUrls = [];
+  let recs = [];
+  try { recs = await dbAll(); } catch { /* 隐私模式下 IndexedDB 可能不可用 */ }
+  if (!recs.length) {
+    box.innerHTML = '<p class="muted">' + T('暂无保存的文件。生成扫描件后点"💾 存入文件夹"。') + '</p>';
+    return;
+  }
+  box.innerHTML = '';
+  recs.sort((x, y) => y.date - x.date).forEach(rec => {
+    const d = document.createElement('div');
+    d.className = 'file-item';
+    const img = document.createElement('img');
+    const u = URL.createObjectURL(rec.thumb);
+    _thumbUrls.push(u); img.src = u;
+    const info = document.createElement('div');
+    info.className = 'fi-info';
+    info.innerHTML = `<div class="fi-name"></div><div class="fi-meta"></div>`;
+    info.querySelector('.fi-name').textContent = rec.name;
+    info.querySelector('.fi-meta').textContent =
+      `${T(rec.presetName)} · ${rec.pageCount}${uiLang === 'en' ? ' pages' : '页'} · ${new Date(rec.date).toLocaleString(uiLang === 'en' ? 'en-US' : 'zh-CN')}`;
+    const btns = document.createElement('div');
+    btns.className = 'fi-btns';
+    const mk = (txt, cls, fn) => {
+      const b = document.createElement('button');
+      b.className = `btn btn-sm ${cls}`; b.textContent = txt; b.onclick = fn;
+      return b;
+    };
+    btns.appendChild(mk('PDF', 'btn-primary', () => exportSavedPdf(rec.id)));
+    btns.appendChild(mk('PNG', 'btn-dark', () => exportSavedPng(rec.id)));
+    btns.appendChild(mk('✕', 'btn-ghost', async () => {
+      if (confirm(`删除「${rec.name}」？此操作不可恢复。`)) {
+        await dbDel(rec.id); renderFileList();
+      }
+    }));
+    d.appendChild(img); d.appendChild(info); d.appendChild(btns);
+    box.appendChild(d);
+  });
+}
+async function exportSavedPdf(id) {
+  busy(true);
+  try {
+    const rec = await dbGet(id);
+    const jpegs = await Promise.all(rec.pages.map(b =>
+      b.arrayBuffer().then(x => new Uint8Array(x))));
+    const pdf = makePdf(jpegs, A4W, A4H);
+    const url = URL.createObjectURL(new Blob([pdf], { type:'application/pdf' }));
+    download(url, `${rec.name}.pdf`);
+    setTimeout(() => URL.revokeObjectURL(url), 5000);
+  } finally { busy(false); }
+}
+async function exportSavedPng(id) {
+  const rec = await dbGet(id);
+  rec.pages.forEach((b, i) => {
+    const suffix = rec.pages.length > 1 ? `_第${i+1}页` : '';
+    const url = URL.createObjectURL(b);
+    setTimeout(() => {
+      download(url, `${rec.name}${suffix}.jpg`);
+      setTimeout(() => URL.revokeObjectURL(url), 5000);
+    }, i * 350);
+  });
+}
+renderFileList();
+
+/* ---------------- 在线模式（升级预留通道） ----------------
+ * 开关仅影响"是否允许调用服务端 API"；现有扫描功能始终本地处理。
+ * 服务端就绪后：改 API_BASE，按 API 中的路径实现接口即可。
+ * 接口约定：POST multipart/form-data，字段 image=图片文件，
+ * 成功返回处理后的图片（Content-Type: image/*），失败返回非 2xx + JSON {message}。
+ */
+const API_BASE = 'https://api.example.com';   // TODO: 换成你自己的域名
+const API = {
+  health:            '/v1/health',              // GET，返回 200 即视为可用
+  removeWatermark:   '/v1/remove-watermark',    // 预留：AI 去水印
+  removeHandwriting: '/v1/remove-handwriting',  // 预留：AI 去手写
+  enhance:           '/v1/enhance',             // 预留：AI 增强
+  feedback:          '/v1/feedback',            // 预留：投诉与建议（POST JSON {type,message,contact,time}）
+};
+const FEEDBACK_CONTACT = '';  // TODO: 填你的接收邮箱/微信号，服务器未就绪时引导用户发到这里
+
+/* ---------------- 分享 ---------------- */
+function copyTextRobust(s) {
+  // 剪贴板 API 在 file:// 或旧浏览器下可能不可用，用隐藏 textarea 兜底
+  return navigator.clipboard?.writeText(s).then(() => true).catch(() => fallback()) ?? Promise.resolve(fallback());
+  function fallback() {
+    try {
+      const ta = document.createElement('textarea');
+      ta.value = s; ta.style.cssText = 'position:fixed;opacity:0';
+      document.body.appendChild(ta);
+      ta.select(); ta.setSelectionRange(0, s.length);
+      const ok = document.execCommand('copy');
+      ta.remove();
+      return ok;
+    } catch { return false; }
+  }
+}
+$('btnShare').onclick = async () => {
+  const isHttp = location.protocol.startsWith('http');
+  const zh = uiLang !== 'en';
+  const text = zh
+    ? '推荐一个证件扫描件生成工具：100%本地处理、图片不上传、免费无广告，身份证/户口本/合同都能做。'
+    : 'Check out this document scanner: 100% on-device, zero upload, free and ad-free.';
+
+  if (!isHttp) {
+    // 本地文件打开：没有在线链接可分享，说清楚并给出两条可行路径
+    alert(zh
+      ? '当前是直接打开的本地文件，还没有可分享的网址链接。\n\n分享给别人有两种方式：\n① 把这个 HTML 文件本身发给对方（微信/QQ 发文件即可，对方双击打开就能用）；\n② 等部署上线后（见 README 部署说明），分享网址链接。'
+      : 'You are viewing a local file — there is no web link to share yet.\n\nTwo options:\n1) Send this HTML file itself to others (it works standalone);\n2) Deploy it (see README), then share the URL.');
+    return;
+  }
+
+  const data = { title: zh ? '证件扫描 — 零上传' : 'Doc Scan — zero upload', text, url: location.href };
+  if (navigator.share) {
+    try { await navigator.share(data); return; } catch (e) { if (e.name === 'AbortError') return; }
+  }
+  const s = `${text} ${location.href}`;
+  if (await copyTextRobust(s)) {
+    alert(zh ? '链接和推荐文案已复制，粘贴发给朋友即可。' : 'Link copied — paste it to share.');
+  } else {
+    prompt(zh ? '自动复制失败，请手动复制以下内容：' : 'Auto-copy failed. Copy manually:', s);
+  }
+};
+
+/* ---------------- 投诉 / 反馈（双页签 + 问题多选） ---------------- */
+let fbMode = 'complaint';   // complaint | suggest
+function fbSwitch(mode) {
+  fbMode = mode;
+  $('fbTabC').classList.toggle('on', mode === 'complaint');
+  $('fbTabS').classList.toggle('on', mode === 'suggest');
+  $('fbPaneC').classList.toggle('hidden', mode !== 'complaint');
+  $('fbPaneS').classList.toggle('hidden', mode !== 'suggest');
+  const zh = uiLang !== 'en';
+  $('fbText').placeholder = mode === 'complaint'
+    ? (zh ? '补充说明（选填）：还有什么想说明的，可以写在这里…' : 'Details (optional): anything else to add…')
+    : (zh ? '您的意见（必填，几句话即可）。例如：希望增加某某功能、某一步不太好用…' : 'Your suggestion (required). e.g. feature requests, confusing steps…');
+}
+$('fbTabC').onclick = () => fbSwitch('complaint');
+$('fbTabS').onclick = () => fbSwitch('suggest');
+document.querySelectorAll('#fbIssueChips label').forEach(l => {
+  l.addEventListener('click', () => l.classList.toggle('on'));   // 可多选
+});
+$('btnFeedback').onclick = () => $('fbMask').classList.remove('hidden');
+$('fbClose').onclick = () => $('fbMask').classList.add('hidden');
+$('fbMask').addEventListener('click', e => { if (e.target === $('fbMask')) $('fbMask').classList.add('hidden'); });
+$('fbContactUs').onclick = async () => {
+  const zh = uiLang !== 'en';
+  if (!FEEDBACK_CONTACT) {
+    alert(zh ? '人工联系通道将在正式上线后开通；现阶段请用"提交"反馈，作者会看到。'
+             : 'Direct contact opens after launch; please use Submit for now.');
+    return;
+  }
+  if (FEEDBACK_CONTACT.includes('@')) location.href = `mailto:${FEEDBACK_CONTACT}`;
+  else if (await copyTextRobust(FEEDBACK_CONTACT))
+    alert((zh ? '联系方式已复制：' : 'Contact copied: ') + FEEDBACK_CONTACT);
+  else prompt(zh ? '作者联系方式：' : 'Contact:', FEEDBACK_CONTACT);
+};
+$('fbSubmit').onclick = async () => {
+  const zh = uiLang !== 'en';
+  const issues = [...document.querySelectorAll('#fbIssueChips label.on')].map(l => l.dataset.t);
+  const text = $('fbText').value.trim();
+  if (fbMode === 'complaint' && !issues.length && !text) {
+    alert(zh ? '请至少选择一项问题，或写几句补充说明。' : 'Pick at least one issue or add a note.'); return;
+  }
+  if (fbMode === 'suggest' && !text) {
+    alert(zh ? '请写几句您的建议。' : 'Please write your suggestion.'); return;
+  }
+  const payload = {
+    type: fbMode, issues: fbMode === 'complaint' ? issues : [],
+    message: text,
+    contact: $('fbContact').value.trim(),
+    time: new Date().toISOString(), version: 'phase0'
+  };
+  $('fbSubmit').disabled = true;
+  try {
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 8000);
+    const res = await fetch(API_BASE + API.feedback, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload), signal: ctrl.signal
+    });
+    clearTimeout(timer);
+    if (!res.ok) throw new Error();
+    alert(uiLang === 'en' ? 'Submitted. Thank you!' : '已提交，感谢您的反馈！');
+    $('fbText').value = '';
+    document.querySelectorAll('#fbIssueChips label.on').forEach(l => l.classList.remove('on'));
+    $('fbMask').classList.add('hidden');
+  } catch {
+    // 服务器未就绪：复制内容引导线下发送，反馈不丢失
+    const zh2 = uiLang !== 'en';
+    const head = fbMode === 'complaint' ? (zh2 ? '投诉' : 'Complaint') : (zh2 ? '建议' : 'Suggestion');
+    const s = `【证件扫描·${head}】\n` +
+      (payload.issues.length ? (zh2 ? '问题项：' : 'Issues: ') + payload.issues.join('、') + '\n' : '') +
+      (text ? text + '\n' : '') +
+      (zh2 ? '联系方式：' : 'Contact: ') + (payload.contact || (zh2 ? '未留' : 'n/a')) +
+      `\n${payload.time}`;
+    const tip = FEEDBACK_CONTACT
+      ? (zh2 ? `请发送至：${FEEDBACK_CONTACT}` : `Send to: ${FEEDBACK_CONTACT}`)
+      : (zh2 ? '可通过邮件或微信发给作者。' : 'Send it to the author by email.');
+    if (await copyTextRobust(s)) alert((zh2 ? '在线提交暂未开通。反馈内容已复制到剪贴板，' : 'Online submit not ready. Feedback copied — ') + tip);
+    else prompt((zh2 ? '在线提交暂未开通，' : 'Online submit not ready. ') + tip, s);
+  } finally { $('fbSubmit').disabled = false; }
+};
+let onlineMode = localStorage.getItem('online_mode') === '1';
+
+async function apiCall(path, blob, extra = {}) {
+  if (!onlineMode) throw new Error('在线模式未开启');
+  const fd = new FormData();
+  fd.append('image', blob, 'input.jpg');
+  for (const [k, v] of Object.entries(extra)) fd.append(k, v);
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), 60000);
+  try {
+    const res = await fetch(API_BASE + path, { method: 'POST', body: fd, signal: ctrl.signal });
+    if (!res.ok) {
+      let msg = `服务端错误 ${res.status}`;
+      try { msg = (await res.json()).message || msg; } catch {}
+      throw new Error(msg);
+    }
+    return await res.blob();
+  } finally { clearTimeout(timer); }
+}
+
+async function checkServer() {
+  try {
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 5000);
+    const res = await fetch(API_BASE + API.health, { signal: ctrl.signal });
+    clearTimeout(timer);
+    return res.ok;
+  } catch { return false; }
+}
+
+async function syncModeUI() {
+  const t = $('onlineToggle'), badge = $('modeBadge'),
+        label = $('modeLabel'), status = $('modeStatus');
+  t.checked = onlineMode;
+  if (onlineMode) {
+    label.textContent = T('🌐 在线增强：开启');
+    badge.textContent = T('🌐 在线模式 · 使用 AI 功能时图片将加密上传至自有服务器');
+    badge.classList.add('online');
+    status.textContent = T('检测服务器中…');
+    status.textContent = (await checkServer()) ? T('✓ 服务器已连接')
+      : T('⚠ 服务器未就绪，高级功能暂不可用（基础功能不受影响）');
+  } else {
+    label.textContent = T('🌐 在线增强：关闭');
+    badge.textContent = T('🔒 100% 本地处理 · 图片不离开你的电脑 · 可断网使用');
+    badge.classList.remove('online');
+    status.textContent = '';
+  }
+}
+$('onlineToggle').addEventListener('change', e => {
+  if (e.target.checked && !confirm(
+    '开启在线增强后，使用 AI 高级功能（去水印、去手写等）时，相应图片会通过 HTTPS 上传到服务器处理。\n\n基础扫描功能仍然 100% 本地处理，不受影响。\n\n确认开启？'
+  )) { e.target.checked = false; return; }
+  onlineMode = e.target.checked;
+  localStorage.setItem('online_mode', onlineMode ? '1' : '0');
+  syncModeUI();
+});
+/* syncModeUI 的首次调用由底部 applySettings() 统一触发（需等 uiLang 初始化） */
+
+/* ---------------- 多语言（i18n） ----------------
+ * 新增语言：扩充 EN_MAP 式词典 + I18N_NODES 增加对应列，详见交接文档。
+ */
+const EN_MAP = {
+  '身份证':'ID Card','银行卡':'Bank Card','驾驶证':"Driver's License",'行驶证':'Vehicle License',
+  '户口本':'Household Register','护照资料页':'Passport','港澳通行证':'HK/Macau Permit','台湾通行证':'Taiwan Permit',
+  '结婚证':'Marriage Cert.','毕业证书':'Diploma','学位证书':'Degree Cert.','不动产权证':'Property Cert.',
+  '营业执照':'Business License','组织机构代码':'Org. Code Cert.','税务登记证':'Tax Registration','社保卡':'Social Security Card',
+  '居住证':'Residence Permit','出生证明':'Birth Cert.','合同文件':'Contract','普通文档':'Document',
+  '正面（人像面）':'Front (portrait)','反面（国徽面）':'Back (emblem)','正面':'Front','反面':'Back',
+  '主页':'Main page','副页':'Second page','户主页':'Householder page','本人内页':'Member page',
+  '资料页':'Data page','证书页':'Certificate page','执照页':'License page','证明页':'Certificate page','内页':'Inner page',
+  '重新编辑':'Re-edit','换图':'Replace','＋ 选择照片':'+ Choose photo','✕ 删除此页':'✕ Remove page',
+  '支持手机斜拍照片':'Angled phone photos OK','添加一页':'Add a page','更多证件':'More types',
+  '⚙ 自定义':'⚙ Customize','✓ 完成':'✓ Done','至少保留一个常用证件类型。':'Keep at least one pinned type.',
+  '🌐 在线增强：开启':'🌐 Online mode: ON','🌐 在线增强：关闭':'🌐 Online mode: OFF',
+  '🔒 100% 本地处理 · 图片不离开你的电脑 · 可断网使用':'🔒 100% on-device · Images never leave your device · Works offline',
+  '🌐 在线模式 · 使用 AI 功能时图片将加密上传至自有服务器':'🌐 Online mode · AI features upload images via HTTPS',
+  '检测服务器中…':'Checking server…','✓ 服务器已连接':'✓ Server connected',
+  '⚠ 服务器未就绪，高级功能暂不可用（基础功能不受影响）':'⚠ Server not ready; advanced features unavailable (basics unaffected)',
+  '此件仅用于办理银行业务，他用无效':'For bank business only; invalid for any other purpose',
+  '此件仅用于办理入职手续，他用无效':'For employment onboarding only; invalid for any other purpose',
+  '此件仅用于办理租房合同，他用无效':'For rental contract only; invalid for any other purpose',
+  '此件仅用于办理签证申请，他用无效':'For visa application only; invalid for any other purpose',
+  '暂无保存的文件。生成扫描件后点"💾 存入文件夹"。':'No saved files yet. Tap "💾 Save to My Files" after generating.',
+};
+function T(s) {
+  if (uiLang === 'zh') return s;
+  if (EN_MAP[s]) return EN_MAP[s];
+  let m = s.match(/^第(\d+)页$/); if (m) return `Page ${m[1]}`;
+  m = s.match(/^内页(\d+)$/); if (m) return `Inner page ${m[1]}`;
+  return s;
+}
+const I18N_NODES = [
+  { q:'header h1', en:' Doc Scan' },
+  { q:'#btnShare', en:'📤 Share' },
+  { q:'#btnFeedback', en:'💬 Feedback' },
+  { q:'#btnSettings', en:'⚙ Settings' },
+  { q:'.card h2', en:['Choose document type','Upload & crop','Scan effect & watermarks','A4 preview & export (1:1, 300 DPI)','My Files'] },
+  { q:'#manageTip', en:'Tap ★ to pin a type to the home grid, ☆ to unpin. Saved on this device.' },
+  { q:'.editor-tip', en:'Drag the 4 dots to the document corners, then tap "Apply crop". Fixes angled shots via perspective correction.' },
+  { q:'#btnRotate', en:'↻ Rotate 90°' },
+  { q:'#btnResetQuad', en:'Reset corners' },
+  { q:'#btnApply', en:'✓ Apply crop' },
+  { q:'#btnCancelEdit', en:'Cancel' },
+  { q:'#filterRow label', en:['✨ Enhance','Original','Grayscale','B&W copy'] },
+  { q:'#wmText', attr:'placeholder', en:'Tiled watermark (light, covers the whole page)' },
+  { q:'#stmtText', attr:'placeholder', en:'Purpose note written across the document (e.g. For bank account opening only)' },
+  { q:'#stmtDate', parent:true, en:" With today's date" },
+  { q:'#stmtChips label', en:['Bank','Onboarding','Rental','Visa'] },
+  { q:'#wmTip', en:'Tip: the tiled watermark deters whole-page misuse; the purpose note is written across the document so it cannot be cropped out. Use both together.' },
+  { q:'#btnPng', en:'⬇ PNG' },
+  { q:'#btnPdf', en:'⬇ PDF' },
+  { q:'#btnPrint', en:'🖨 Print' },
+  { q:'#btnSave', en:'💾 Save to My Files' },
+  { q:'#btnOcr', en:'🔠 OCR text' },
+  { q:'#ocrTip', en:'OCR runs locally in your browser (Chinese & English). First use downloads a ~15 MB engine; works offline afterwards.' },
+  { q:'.notice', html:true, en:'⚖️ Process <strong>your own documents</strong> for lawful purposes only. Forging or misusing identity documents is illegal.' },
+  { q:'#folderDesc', html:true, en:'Saved scans live here for quick reuse. Stored only in <strong>this browser</strong> (IndexedDB), never uploaded; clearing site data deletes them — back up important files.' },
+  { q:'#footText', en:'Runs entirely in your browser · No server · No tracking · Save this file for offline use' },
+  { q:'#installHint', en:'Add to home screen' },
+  { q:'#setTitle', en:'⚙ Display settings' },
+  { q:'#setLangLab', en:'Language' },
+  { q:'#setThemeLab', en:'Theme' },
+  { q:'#setFontLab', en:'Font size' },
+  { q:'#selTheme option', en:['🌞 Light','🌿 Eye-care green','🌙 Dark'] },
+  { q:'#selFont option', en:['Standard','Large','X-Large'] },
+  { q:'#setTip', en:'Settings are saved on this device.' },
+  { q:'#fbTitle', en:'⚠️ Complaint / Feedback' },
+  { q:'#fbTabC', html:true, en:'<strong>Complaint</strong>Download, quality issues' },
+  { q:'#fbTabS', html:true, en:'<strong>Suggestion</strong>Features & experience' },
+  { q:'#fbHintC', html:true, en:'<strong>Select all that apply (multi-select)</strong><br>Just tap — no technical details needed.' },
+  { q:'#fbHintS', html:true, en:'<strong>Write your suggestion</strong><br>Your ideas matter — a few sentences are enough.' },
+  { q:'#fbIssueChips label', en:['Download failed','Exported PDF won’t open','Crop/correction unsatisfactory','Watermark/note displays wrong','OCR inaccurate','Page slow or errors','Other'] },
+  { q:'#fbText', attr:'placeholder', en:'Details (optional): anything else to add…' },
+  { q:'#fbContact', attr:'placeholder', en:'Contact (optional: email or WeChat)' },
+  { q:'#fbPrivacy', en:'Feedback contains only what you select and write — no images or personal data. Contact is optional.' },
+  { q:'#fbSubmit', en:'📨 Submit' },
+  { q:'#fbContactUs', en:'💬 Contact author' },
+  { q:'#ocrTitle', en:'🔠 OCR result' },
+  { q:'#ocrCopy', en:'Copy all' },
+];
+const _i18nOrig = new Map();
+function lastTextNode(el) {
+  for (let i = el.childNodes.length - 1; i >= 0; i--) {
+    const nd = el.childNodes[i];
+    if (nd.nodeType === 3 && nd.nodeValue.trim()) return nd;
+  }
+  return null;
+}
+function translateStatic() {
+  I18N_NODES.forEach(n => {
+    document.querySelectorAll(n.q).forEach((el, idx) => {
+      if (n.parent) el = el.parentElement;
+      const en = Array.isArray(n.en) ? n.en[idx] : n.en;
+      if (en == null) return;
+      const key = n.q + '|' + idx;
+      if (!_i18nOrig.has(key)) {
+        const nd = lastTextNode(el);
+        _i18nOrig.set(key, n.attr ? el.getAttribute(n.attr) : n.html ? el.innerHTML : (nd ? nd.nodeValue : ''));
+      }
+      const v = uiLang === 'en' ? en : _i18nOrig.get(key);
+      if (n.attr) el.setAttribute(n.attr, v);
+      else if (n.html) el.innerHTML = v;
+      else {
+        const nd = lastTextNode(el);
+        if (nd) nd.nodeValue = v; else el.appendChild(document.createTextNode(v));
+      }
+    });
+  });
+}
+
+/* ---------------- 显示设置（语言/主题/字号，存本机） ---------------- */
+let uiLang = localStorage.getItem('ui_lang') || 'zh';
+let uiTheme = localStorage.getItem('ui_theme') || 'light';
+let uiFont = localStorage.getItem('ui_font') || 'std';
+function applySettings() {
+  document.documentElement.lang = uiLang === 'zh' ? 'zh-CN' : 'en';
+  document.body.dataset.theme = uiTheme;
+  document.body.classList.toggle('fs-l', uiFont === 'l');
+  document.body.classList.toggle('fs-xl', uiFont === 'xl');
+  translateStatic();
+  renderTypes(); renderSlots(); renderA4(); renderFileList(); syncModeUI();
+}
+$('btnSettings').onclick = () => {
+  $('selLang').value = uiLang; $('selTheme').value = uiTheme; $('selFont').value = uiFont;
+  $('setMask').classList.remove('hidden');
+};
+$('setClose').onclick = () => $('setMask').classList.add('hidden');
+$('setMask').addEventListener('click', e => { if (e.target === $('setMask')) $('setMask').classList.add('hidden'); });
+$('selLang').onchange = e => { uiLang = e.target.value; localStorage.setItem('ui_lang', uiLang); applySettings(); };
+$('selTheme').onchange = e => { uiTheme = e.target.value; localStorage.setItem('ui_theme', uiTheme); applySettings(); };
+$('selFont').onchange = e => { uiFont = e.target.value; localStorage.setItem('ui_font', uiFont); applySettings(); };
+
+/* ---------------- OCR 识别文字（Tesseract.js，本机 WASM 运算） ---------------- */
+async function loadTesseract() {
+  if (window.Tesseract) return;
+  await new Promise((res, rej) => {
+    const sc = document.createElement('script');
+    sc.src = 'https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js';
+    sc.onload = res;
+    sc.onerror = () => rej(new Error(uiLang === 'en'
+      ? 'Failed to load OCR engine (network required on first use)'
+      : 'OCR 组件加载失败（首次使用需联网）'));
+    document.head.appendChild(sc);
+  });
+}
+$('btnOcr').onclick = async () => {
+  const ready = sides.filter(s => s.warped);
+  if (!ready.length) return;
+  busy(true, uiLang === 'en'
+    ? 'Loading OCR engine… (first use downloads ~15 MB)'
+    : '正在加载识别组件…（首次需下载约 15MB，之后可离线）');
+  try {
+    await loadTesseract();
+    const worker = await Tesseract.createWorker('chi_sim+eng');
+    const out = [];
+    for (let i = 0; i < ready.length; i++) {
+      busy(true, uiLang === 'en' ? `Recognizing ${i+1}/${ready.length}…` : `正在识别 ${i+1}/${ready.length}…`);
+      const { data } = await worker.recognize(ready[i].warped);
+      out.push(`【${T(ready[i].label)}】\n${(data.text || '').trim()}`);
+    }
+    await worker.terminate();
+    $('ocrText').value = out.join('\n\n');
+    $('ocrMask').classList.remove('hidden');
+  } catch (e) {
+    alert((uiLang === 'en' ? 'OCR failed: ' : '识别失败：') + e.message);
+  } finally { busy(false); }
+};
+$('ocrClose').onclick = () => $('ocrMask').classList.add('hidden');
+$('ocrMask').addEventListener('click', e => { if (e.target === $('ocrMask')) $('ocrMask').classList.add('hidden'); });
+$('ocrCopy').onclick = async () => {
+  try {
+    await navigator.clipboard.writeText($('ocrText').value);
+    alert(uiLang === 'en' ? 'Copied.' : '已复制全部文字。');
+  } catch { $('ocrText').select(); document.execCommand('copy'); }
+};
+
+// 页首 logo 复用 favicon 的 SVG（单一来源，改图标只需改一处）
+$('logoImg').src = document.querySelector('link[rel="icon"]').href;
+
+initTypes();
+resetSides();
+applySettings();
+
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('sw.js').catch(e => console.log('SW registration failed:', e));
+  });
+}
+</script>
+</body>
+</html>
